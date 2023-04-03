@@ -1,0 +1,8 @@
+django
+djangorestframework
+python-decouple
+psycopg2-binary
+djoser
+djangorestframework_simplejwt
+django-rest-passwordreset
+ujson
