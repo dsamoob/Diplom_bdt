@@ -1,20 +1,49 @@
 from django.contrib.auth.password_validation import validate_password
 from django.shortcuts import render
-
+import xlrd
 from requests import get
+import urllib.request
 from django.contrib.auth.models import User, Group
 from rest_framework import viewsets
 from rest_framework import permissions
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from django.http import JsonResponse
-from backend.models import User, State, ConfirmEmailToken, City, FreightRates
-from backend.serializers import StateSerializer, UserSerializer, CitySerializer, StateDescriptionSerializer
+from backend.models import User, State, ConfirmEmailToken, City, FreightRates, StockType
+from backend.serializers import StateSerializer, UserSerializer, CitySerializer,\
+    StateDescriptionSerializer, FreightRatesSerializer, CityFreightSerializer, StockTypeSerializer
+
 from backend.signals import new_user_registered
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
+from django.core.validators import URLValidator
+from django.core.exceptions import ValidationError
+import ssl
 from ujson import loads as load_json
 from rest_framework.generics import ListAPIView
+
+
+class SetStockTypes(APIView):
+    """ Класс загрузки типов сток листов в дб и получения их списка"""
+    def check_user(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
+        if request.user.type != 'staff':
+            return JsonResponse({'Status': False, 'Error': 'Только для персонала'}, status=403)
+        return True
+
+    def post(self, request, *args, **kwargs):
+        self.check_user(request)
+        if {'stock_types'}.issubset(request.data):
+            for element in request.data['stock_types']:
+                StockType.objects.get_or_create(name=element['name'].capitalize())
+            return JsonResponse({'status': 'stock_types finished'})
+
+    def get(self, request, *args, **kwargs):
+        self.check_user(request)
+        obj = StockType.objects.all()
+        serializer = StockTypeSerializer(obj, many=True)
+        return Response(serializer.data)
 
 
 class SetFreightRates(APIView):
@@ -27,16 +56,42 @@ class SetFreightRates(APIView):
 
     def post(self, request, *args, **kwargs):
         self.check_user(request)
-        print(request.data)
+        if not {'url', 'state'}.issubset(request.data):
+            return JsonResponse({'status': False, 'message': 'incorrect fields, need url and state'})
 
+        url = request.data.get('url')
+        validate_url = URLValidator()
+        try:
+            validate_url(url)
+        except ValidationError as e:
+            return JsonResponse({'status': False, 'error': str(e)})
 
+        ssl._create_default_https_context = ssl._create_unverified_context  # проблема с SSL сертами
+        urllib.request.urlretrieve(url, 'freightrates.xls')
+        wb = xlrd.open_workbook('freightrates.xls')
+        sheet = wb.sheet_by_index(0)
+        state_id, _ = State.objects.get_or_create(name=request.data['state'].capitalize()) # идентифицируется страна
+
+        """ Предполагается, что фаил идет всегда одного вида, меняется лишь количество строк """
+        for rownum in range(1, sheet.nrows):  # предполагается, что в файле первая строка - заголовок
+            row = sheet.row_values(rownum)
+            city, _ = City.objects.get_or_create(name=row[1].capitalize(), state_id=state_id)
+            FreightRates.objects.update_or_create(POL=row[0], city_id=city, price=row[2], minimal_weight=row[3])
+
+        return JsonResponse({'stat': 'ok'})
+
+    """ Получение информации по стоимостям фрахта для всех городов по названию страны или для определнного города по его названию"""
     def get(self, request, *args, **kwargs):
-        pass
+        self.check_user(request)
+        if {'city'}.issubset(request.data):
+            obj = City.objects.filter(name=request.data['city']).first()
+            serializer = CityFreightSerializer(obj)
+            return Response(serializer.data)
+        obj = City.objects.all()
+        return Response(CityFreightSerializer(obj, many=True).data)
 
     def delete(self, request, *args, **kwargs):
         pass
-
-
 
 
 class UploadStateCity(APIView):
@@ -48,25 +103,27 @@ class UploadStateCity(APIView):
             return JsonResponse({'Status': False, 'Error': 'Только для персонала'}, status=403)
         return True
 
-    # внесениюе в дб информации по странам и городам
+    """ внесениюе в дб информации по странам и городам """
     def post(self, request, *args, **kwargs):
         self.check_user(request)
-        if {'state',}.issubset(request.data):
+        if {'state'}.issubset(request.data):
             for state in request.data['state']:
-                obj, _ = State.objects.get_or_create(name=state['name'])
+                obj, _ = State.objects.get_or_create(name=state['name'].capitalize())
                 for element in state['cities']:
-                    City.objects.get_or_create(name=element['name'], state_id=obj)
+                    City.objects.get_or_create(name=element['name'].capitalize(), state_id=obj)
             return JsonResponse({'status': 'State and cities filled successfully'})
         return JsonResponse({"status": "incorrect fields"})
 
-    # получение информации по странам и городам в дб.
+    """ получение информации о городах по названию страны, ил страны или польная выгрузка """
     def get(self, request, pk=None, *args, **kwargs):
         self.check_user(request)
+        query_set = State.objects.all()
         if pk:
             query_set = State.objects.filter(id=pk).all()
-            if not query_set:
-                return JsonResponse({'status': 'not in DB'})
-        query_set = State.objects.all()
+        elif {'state'}.issubset(request.data):
+            query_set = State.objects.filter(name=request.data['state'].capitalize()).all()
+        elif not query_set:
+            return JsonResponse({'status': 'not in DB'})
         return Response(StateSerializer(query_set, many=True).data)
 
 
@@ -141,7 +198,6 @@ class RegisterAccount(APIView):
 
     # Регистрация методом POST
     def post(self, request, *args, **kwargs):
-
         # проверяем обязательные аргументы
         if {'first_name', 'last_name', 'email', 'password', 'type'}.issubset(request.data):
             errors = {}

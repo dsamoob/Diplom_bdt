@@ -1,43 +1,38 @@
+POST http://127.0.0.1:8000/api/v1/filldb/stocktypes/
+Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Content-Type: application/json
+
+{
+  "stock_types": [
+    {"name":  "freshwater"},
+    {"name": "plants"},
+    {"name": "marine"}
+]
+}
+###
+GET http://127.0.0.1:8000/api/v1/filldb/stocktypes/
+Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Content-Type: application/json
+
+
+### ______Загрузка стоимостей фрахта в дб ______ и их проверка
 POST http://127.0.0.1:8000/api/v1/filldb/freight/
 Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
 Content-Type: application/json
 
 {
-  "state": [
-    {"name": "Россия",
-      "cities": [
-        {"POL": "SVO", "name": "Махачкала", "rate": 167.21, "minimal":  30},
-        {"POL": "DME", "name": "Сыктывкар", "rate": 220.4, "minimal": 30},
-        {"POL": "SVO", "name": "Уфа", "rate": 110.4, "minimal": 30},
-        {"POL": "DME", "name": "Уфа", "rate": 109.4, "minimal": 30},
-        {"POL": "VKO", "name": "Архангельск", "rate": 199.4, "minimal": 30},
-        {"POL": "SVO", "name": "Санкт-Петербург", "rate": 89.4, "minimal": 60},
-        {"POL": "DME", "name": "Санкт-Петербург", "rate": 100.4, "minimal": 30},
-        {"POL": "SVO", "name": "Екатеринбург", "rate": 104.2, "minimal": 30},
-        {"POL": "DME", "name": "Екатеринбург", "rate": 100.9, "minimal": 45},
-        {"POL": "DME", "name": "Сочи", "rate": 170.9, "minimal": 30},
-        {"POL": "SVO", "name": "Сочи", "rate": 150.9, "minimal": 30},
-        {"POL": "VKO", "name": "Екатеринбург", "rate": 93.9, "minimal": 20},
-        {"POL": "DME", "name": "Новосибирск", "rate": 3909, "minimal": 45}
-      ]
-    },
-    {"name": "Республика Беларусь",
-      "cities": [
-        {"POL": "SVO", "name": "Минск", "rate": 200.21, "minimal":  30},
-        {"POL": "DME", "name": "Минск", "rate": 189.4, "minimal": 30},
-        {"POL": "SVO", "name": "Гомель", "rate": 110.4, "minimal": 30},
-        {"POL": "DME", "name": "Гомель", "rate": 109.4, "minimal": 30}
-      ]
-    },
-    {"name": "Казахкстан",
-      "cities": [
-        {"POL": "SVO", "name": "Алматы", "rate": 200.21, "minimal":  30},
-        {"POL": "DME", "name": "Караганда", "rate": 189.4, "minimal": 30}
-      ]
-    }
-  ]
+    "state": "Россия",
+  "url": "https://github.com/dsamoob/Diplom_bdt/blob/3d523005648fff47a3a7566f5e77ace0dcd2619e/freightrates.xls?raw=true"
 }
 
+###
+GET http://127.0.0.1:8000/api/v1/filldb/freight/
+Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Content-Type: application/json
+
+{
+    "city": "Хабаровск"
+}
 
 ### _____Загрузка стран и городов в дб____ и их проверка
 POST http://127.0.0.1:8000/api/v1/filldb/state/
@@ -74,6 +69,12 @@ Content-Type: application/json
 GET http://127.0.0.1:8000/api/v1/filldb/state/
 Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
 Content-Type: application/json
+###
+GET http://127.0.0.1:8000/api/v1/filldb/state/
+Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Content-Type: application/json
+
+{"state": "Казахстан"}
 ###
 GET http://127.0.0.1:8000/api/v1/filldb/state/3/
 Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17

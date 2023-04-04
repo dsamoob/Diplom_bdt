@@ -5,9 +5,9 @@ from django_rest_passwordreset.tokens import get_token_generator
 
 
 STOCK_TYPES = (
-    ('freshwater', 'Пресноводные'),
-    ('marine', 'морские'),
-    ('plants', 'растения')
+    ('Freshwater', 'Пресноводные'),
+    ('Marine', 'морские'),
+    ('Plants', 'растения')
 )
 
 USER_TYPE_CHOICES = (
@@ -113,7 +113,6 @@ class ConfirmEmailToken(models.Model):
 
 class State(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name='Страна')
-
     def __str__(self):
         return self.name
 
@@ -193,7 +192,7 @@ class StockListItem(models.Model):
 
 class FreightRates(models.Model):
     POL = models.CharField(max_length=5, choices=POL, verbose_name='Аэропорт отправления')
-    city_id = models.ForeignKey(City, on_delete=models.CASCADE)
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='cities')
     minimal_weight = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Минимальный вес')
     price = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Цена за 1 кг')
 

@@ -1,12 +1,24 @@
-from backend.models import User, CompanyDetails, State, City, ShipTo
+from backend.models import User, CompanyDetails, State, City, ShipTo, FreightRates, StockType
 from rest_framework import serializers
-
 
 
 class CitySerializer(serializers.ModelSerializer):
     class Meta:
         model = City
         fields = ('id', 'name')
+
+class FreightRatesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FreightRates
+        fields = ['POL', 'minimal_weight', 'price']
+
+
+class CityFreightSerializer(serializers.ModelSerializer):
+    cities = FreightRatesSerializer(many=True)
+    class Meta:
+        model = City
+        fields = ['name', 'cities']
+
 
 class StateSerializer(serializers.ModelSerializer):
     cities = CitySerializer(many=True)
@@ -30,6 +42,10 @@ class StateDescriptionSerializer(serializers.ModelSerializer):
         model = State
         fields = ['id', 'name', 'cities']
 
+class StockTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StockType
+        fields = ['id', 'name']
 
 ####___________________
 

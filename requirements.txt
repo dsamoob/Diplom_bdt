@@ -6,3 +6,4 @@ djoser
 djangorestframework_simplejwt
 django-rest-passwordreset
 ujson
+xlrd
