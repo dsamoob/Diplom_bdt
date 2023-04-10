@@ -13,7 +13,8 @@ STOCK_TYPES = (
 USER_TYPE_CHOICES = (
     ('shpr', 'Магазин'),
     ('cnee', 'Покупатель'),
-    ('staff', 'Работник')
+    ('staff', 'Работник'),
+    ('shpr/cnee', 'Поставщик/Покупатель')
 )
 
 POL = (
@@ -26,6 +27,13 @@ SHIPMENT_STATUS = (
     ('Confirmed', 'Принято'),
     ('Shipped', 'Отправлено')
 )
+
+SHIP_TARGETS = (
+    ('ship_to', 'куда'),
+    ('ship_from', 'откуда'),
+    ('ship_to_from', 'куда/откуда')
+)
+
 
 class UserManager(BaseUserManager):
     """
@@ -66,7 +74,7 @@ class User(AbstractUser):
     REQUIRED_FIELDS = []
     objects = UserManager()
     USERNAME_FIELD = 'email'
-    type = models.CharField(verbose_name='Тип пользователя', choices=USER_TYPE_CHOICES, max_length=5, default='cnee')
+    type = models.CharField(verbose_name='Тип пользователя', choices=USER_TYPE_CHOICES, max_length=30, default='cnee')
     email = models.EmailField(('email address'), unique=True)
     phone = models.CharField(max_length=16, unique=True)
 
@@ -80,20 +88,16 @@ class ConfirmEmailToken(models.Model):
     def generate_key():
         """ generates a pseudo random code using os.urandom and binascii.hexlify """
         return get_token_generator().generate_token()
-
     user = models.ForeignKey(
         User,
         related_name='confirm_email_tokens',
         on_delete=models.CASCADE,
         verbose_name=("The User which is associated to this password reset token")
     )
-
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name=("When was this token generated")
     )
-
-    # Key field, though it is not the primary key of the model
     key = models.CharField(
         ("Key"),
         max_length=64,
@@ -110,15 +114,15 @@ class ConfirmEmailToken(models.Model):
         return "Password reset token for user {user}".format(user=self.user)
 
 
-
 class State(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name='Страна')
     def __str__(self):
         return self.name
 
+
 class City(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name='Город')
-    state_id = models.ForeignKey(State, on_delete=models.CASCADE, related_name='cities')
+    state = models.ForeignKey(State, on_delete=models.CASCADE, related_name='cities')
     # state = models.ForeignKey(State, on_delete=models.CASCADE, related_name='cities')
 
     def __str__(self):
@@ -126,24 +130,28 @@ class City(models.Model):
 
 
 class CompanyDetails(models.Model):
-    city_id = models.ForeignKey(City, on_delete=models.CASCADE)
-    user_id = models.ForeignKey(User, on_delete=models.CASCADE)
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='company_cities')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_companies')
     name = models.CharField(max_length=150, verbose_name='Название компании')
     street = models.CharField(max_length=150, verbose_name='Улица')
     bld = models.CharField(max_length=30, verbose_name='Строение')
     bank_details = models.CharField(max_length=200, verbose_name='Банковские детали')
+    active = models.BooleanField(default=True)
+    company_type = models.CharField(max_length=9, choices=USER_TYPE_CHOICES)
 
     def __str__(self):
         return f'{self.name}, {self.street}, {self.bld}, {self.bank_details}'
 
 
-class ShipTo(models.Model):
-    city_id = models.ForeignKey(City, on_delete=models.CASCADE)
-    company_details_id = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE)
+class ShipAddresses(models.Model):
+    city = models.ForeignKey(City, on_delete=models.CASCADE)
+    company = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE)
     street = models.CharField(max_length=150, verbose_name='Улица')
     bld = models.CharField(max_length=50, verbose_name='Строение')
     contact_person = models.CharField(max_length=150, verbose_name='Контактное лицо')
     phone = models.CharField(max_length=20, verbose_name='Телефон контактного лица')
+    active = models.BooleanField(default=True)
+    ship_target = models.CharField(max_length=12, choices=SHIP_TARGETS)
 
 
 
@@ -155,18 +163,19 @@ class StockType(models.Model):
 
 
 class StockList(models.Model):
-    company_details_id = models.ForeignKey(User, on_delete=models.CASCADE)
+    company = models.ForeignKey(User, on_delete=models.CASCADE)
     orders_till_date = models.DateTimeField(verbose_name='Дата окончания приема зказаов')
     shipment_date = models.DateTimeField(verbose_name='Дата поставки')
-    stock_type_id = models.ForeignKey(StockType, on_delete=models.CASCADE)
+    stock_type = models.ForeignKey(StockType, on_delete=models.CASCADE)
     bags_quantity = models.IntegerField(default=4, verbose_name='Кол-во пакетов в коробке')
     currency_rate = models.DecimalField(max_digits=4, decimal_places=2, verbose_name='Курс доллара')
     status = models.BooleanField(default=True)
     box_weight = models.DecimalField(max_digits=4, decimal_places=2, verbose_name='Вес одной коробки')
+    ship_from = models.ForeignKey(ShipAddresses, on_delete=models.CASCADE)
 
 
 class Item(models.Model):
-    company_details_id = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE)
+    company = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE)
     code = models.CharField(max_length=10)
     english_name = models.CharField(max_length=100, verbose_name='Местное название')
     scientific_name = models.CharField(max_length=100, verbose_name='Научное название')
@@ -178,8 +187,8 @@ class Item(models.Model):
 
 
 class StockListItem(models.Model):
-    item_id = models.ForeignKey(Item, on_delete=models.CASCADE)
-    stock_list_id = models.ForeignKey(StockList, on_delete=models.CASCADE)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE)
+    stock_list = models.ForeignKey(StockList, on_delete=models.CASCADE)
     price = models.DecimalField(max_digits=7, decimal_places=2, verbose_name='Цена')
     quantity_bag = models.IntegerField(verbose_name='Кол-во в пакете')
     ordered = models.IntegerField(verbose_name='Заказано')
@@ -190,6 +199,7 @@ class StockListItem(models.Model):
     size = models.CharField(max_length=15, verbose_name='Размер', blank=True, default=None)
 
 
+
 class FreightRates(models.Model):
     POL = models.CharField(max_length=5, choices=POL, verbose_name='Аэропорт отправления')
     city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='cities')
@@ -198,7 +208,7 @@ class FreightRates(models.Model):
 
 
 class Order(models.Model):
-    user_id = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     total_quantity = models.DecimalField(max_digits=8, decimal_places=0, verbose_name='Кол-во заказанных шт.', blank=True, default=0)
     total_amoun = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Сумма заказа', blank=True, default=0)
     date = models.DateTimeField(auto_now_add=True, verbose_name='Дата заказа')
@@ -206,12 +216,12 @@ class Order(models.Model):
 
 
 class Delivery(models.Model):
-    ship_to_id = models.ForeignKey(ShipTo, on_delete=models.CASCADE)
+    ship_to = models.ForeignKey(ShipAddresses, on_delete=models.CASCADE)
     shipment_status = models.CharField(max_length=20, choices=SHIPMENT_STATUS, default='Confirmed')
     shipment_date = models.DateTimeField(blank=True)
 
 
 class OrderDelivery(models.Model):
-    order_id = models.ForeignKey(Order, on_delete=models.CASCADE)
-    delivery_id = models.ForeignKey(Delivery, on_delete=models.CASCADE)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE)
+    delivery = models.ForeignKey(Delivery, on_delete=models.CASCADE)
 

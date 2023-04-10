@@ -1,5 +1,72 @@
+POST http://127.0.0.1:8000/api/v1/user/details/shipto/
+Authorization: Token 628435b14d584f974a81f083b2d837baf1e9a08b
+Content-Type: application/json
+
+{
+  "city":
+}
+
+
+###
+PUT http://127.0.0.1:8000/api/v1/user/details/company/2/
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Content-Type: application/json
+
+{
+  "name":  "QHF1FT",
+  "state": "Singapore",
+  "city": "Singapore",
+  "street": "Jalan Lekar 33",
+  "bld": 21231,
+  "bank_details": "HSCB Bank Singapore, A/S 80000000"
+}
+###
+POST http://127.0.0.1:8000/api/v1/user/details/company
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Content-Type: application/json
+
+{
+    "name":  "QHF1FT",
+    "state": "Singapore",
+    "city": "Singapore",
+    "street": "Jalan Lekar",
+    "bld": 21231,
+    "bank_details": "HSCB Bank Singapore, A/S 80000000"
+  }
+###
+DELETE http://127.0.0.1:8000/api/v1/user/details/company/2/
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Content-Type: application/json
+
+{
+  "name":  "QHFFT",
+  "state": "Singapore",
+  "city": "Singapore",
+  "street": "Jalan Lekar 33",
+  "bld": 21231,
+  "bank_details": "HSCB Bank Singapore, A/S 80000000",
+}
+###
+GET http://127.0.0.1:8000/api/v1/user/details/company
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Content-Type: application/json
+
+###
+POST http://127.0.0.1:8000/api/v1/user/details
+Authorization: Token d628435b14d584f974a81f083b2d837baf1e9a08b
+Content-Type: application/json
+
+{
+  "id": 1,
+  "first_name": "Egor",
+  "last_name": "Belov",
+  "email": "dsamoob@yandex.ru",
+  "phone": "+79637882277",
+  "company_users": [{"name":  "bdt"}]
+}
+###
 POST http://127.0.0.1:8000/api/v1/filldb/stocktypes/
-Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
 Content-Type: application/json
 
 {
@@ -11,23 +78,23 @@ Content-Type: application/json
 }
 ###
 GET http://127.0.0.1:8000/api/v1/filldb/stocktypes/
-Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Authorization: Token d2a448d9f8696113431a219349bf49f3efd15995
 Content-Type: application/json
 
 
 ### ______Загрузка стоимостей фрахта в дб ______ и их проверка
 POST http://127.0.0.1:8000/api/v1/filldb/freight/
-Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
 Content-Type: application/json
 
 {
-    "state": "Россия",
+  "state": "Россия",
   "url": "https://github.com/dsamoob/Diplom_bdt/blob/3d523005648fff47a3a7566f5e77ace0dcd2619e/freightrates.xls?raw=true"
 }
 
 ###
 GET http://127.0.0.1:8000/api/v1/filldb/freight/
-Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Authorization: Token c358fee828d2093a8fa6969ca0eea18320701d36
 Content-Type: application/json
 
 {
@@ -36,7 +103,7 @@ Content-Type: application/json
 
 ### _____Загрузка стран и городов в дб____ и их проверка
 POST http://127.0.0.1:8000/api/v1/filldb/state/
-Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
 Content-Type: application/json
 
 {
@@ -67,15 +134,28 @@ Content-Type: application/json
 }
 ###
 GET http://127.0.0.1:8000/api/v1/filldb/state/
-Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Authorization: Token c358fee828d2093a8fa6969ca0eea18320701d36
 Content-Type: application/json
 ###
 GET http://127.0.0.1:8000/api/v1/filldb/state/
-Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Authorization: Token c358fee828d2093a8fa6969ca0eea18320701d36
 Content-Type: application/json
 
 {"state": "Казахстан"}
 ###
 GET http://127.0.0.1:8000/api/v1/filldb/state/3/
-Authorization: Token a4de738eb159937e5edffce7e542b43d4ad12b17
+Authorization: Token c358fee828d2093a8fa6969ca0eea18320701d36
 Content-Type: application/json
+###
+POST http://127.0.0.1:8000/api/v1/user/register
+Content-Type: application/json
+
+{
+  "first_name": "first_cnee",
+  "last_name": "first_cnee_last_name",
+  "email": "e.belov@bdt.ru",
+  "password": "Amd33oof",
+  "username": "cnee_first",
+  "type": "cnee",
+  "phone": "+79991231234482"
+}
