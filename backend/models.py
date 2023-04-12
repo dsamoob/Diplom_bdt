@@ -145,7 +145,7 @@ class CompanyDetails(models.Model):
 
 class ShipAddresses(models.Model):
     city = models.ForeignKey(City, on_delete=models.CASCADE)
-    company = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE)
+    company = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE, related_name='ship_addr')
     street = models.CharField(max_length=150, verbose_name='Улица')
     bld = models.CharField(max_length=50, verbose_name='Строение')
     contact_person = models.CharField(max_length=150, verbose_name='Контактное лицо')
@@ -202,7 +202,7 @@ class StockListItem(models.Model):
 
 class FreightRates(models.Model):
     POL = models.CharField(max_length=5, choices=POL, verbose_name='Аэропорт отправления')
-    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='cities')
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='POLs')
     minimal_weight = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Минимальный вес')
     price = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Цена за 1 кг')
 

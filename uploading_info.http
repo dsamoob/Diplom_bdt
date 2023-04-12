@@ -1,24 +1,58 @@
-POST http://127.0.0.1:8000/api/v1/user/details/shipto/
-Authorization: Token 628435b14d584f974a81f083b2d837baf1e9a08b
-Content-Type: application/json
 
-{
-  "city":
-}
-
-
-###
-PUT http://127.0.0.1:8000/api/v1/user/details/company/2/
+PUT http://127.0.0.1:8000/api/v1/user/details/shipto/26/
 Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
 Content-Type: application/json
 
 {
-  "name":  "QHF1FT",
-  "state": "Singapore",
-  "city": "Singapore",
-  "street": "Jalan Lekar 33",
-  "bld": 21231,
-  "bank_details": "HSCB Bank Singapore, A/S 80000000"
+  "city": 5,
+  "company": 6,
+  "street": "pulyanкi",
+  "bld": 313,
+  "contact_person": "ivцan",
+  "phone": "23534у645"
+}
+###
+
+GET http://127.0.0.1:8000/api/v1/user/details/shipto/7/
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Content-Type: application/json
+
+
+
+###
+POST http://127.0.0.1:8000/api/v1/user/details/shipto/
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Content-Type: application/json
+
+{
+  "city": 2,
+  "company": 6,
+  "street": "pulyanкi",
+  "bld": 313,
+  "contact_person": "ivцan",
+  "phone": "23534у645",
+  "ship_target": "ship_to"
+
+}
+###
+GET http://127.0.0.1:8000/api/v1/user/details/shipto/
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Content-Type: application/json
+
+
+
+### ___User Company _____
+PUT http://127.0.0.1:8000/api/v1/user/details/company/5/
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Content-Type: application/json
+
+{
+  "name":  "VoronezhPlavMetall",
+  "state": "Россия",
+  "city": "Москва",
+  "street": "kuloung st. ",
+  "bld": "4A",
+  "bank_details": "National Bank of Thai"
 }
 ###
 POST http://127.0.0.1:8000/api/v1/user/details/company
@@ -34,37 +68,44 @@ Content-Type: application/json
     "bank_details": "HSCB Bank Singapore, A/S 80000000"
   }
 ###
-DELETE http://127.0.0.1:8000/api/v1/user/details/company/2/
+POST http://127.0.0.1:8000/api/v1/user/details/company
 Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
 Content-Type: application/json
 
 {
-  "name":  "QHFFT",
-  "state": "Singapore",
-  "city": "Singapore",
-  "street": "Jalan Lekar 33",
-  "bld": 21231,
-  "bank_details": "HSCB Bank Singapore, A/S 80000000",
-}
+    "name":  "КолбаскиООО",
+    "state": "Россия",
+    "city": "Волгоград",
+    "street": "Улица восстания негритят",
+    "bld": 18,
+    "bank_details": "какой-то банк"
+  }
 ###
-GET http://127.0.0.1:8000/api/v1/user/details/company
+DELETE http://127.0.0.1:8000/api/v1/user/details/company/5/
 Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
 Content-Type: application/json
 
 ###
+GET http://127.0.0.1:8000/api/v1/user/details/company/5/
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Content-Type: application/json
+
+###___UserDetails____
 POST http://127.0.0.1:8000/api/v1/user/details
-Authorization: Token d628435b14d584f974a81f083b2d837baf1e9a08b
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
 Content-Type: application/json
 
 {
-  "id": 1,
-  "first_name": "Egor",
-  "last_name": "Belov",
-  "email": "dsamoob@yandex.ru",
-  "phone": "+79637882277",
-  "company_users": [{"name":  "bdt"}]
+  "first_name": "Ego4r"
 }
 ###
+GET http://127.0.0.1:8000/api/v1/user/details
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Content-Type: application/json
+
+
+
+###___StockTypes___
 POST http://127.0.0.1:8000/api/v1/filldb/stocktypes/
 Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
 Content-Type: application/json
@@ -84,7 +125,7 @@ Content-Type: application/json
 
 ### ______Загрузка стоимостей фрахта в дб ______ и их проверка
 POST http://127.0.0.1:8000/api/v1/filldb/freight/
-Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
+Authorization: Token 1b2db410571b0379cb93601af73d390b50375770
 Content-Type: application/json
 
 {
@@ -93,8 +134,8 @@ Content-Type: application/json
 }
 
 ###
-GET http://127.0.0.1:8000/api/v1/filldb/freight/
-Authorization: Token c358fee828d2093a8fa6969ca0eea18320701d36
+GET http://127.0.0.1:8000/api/v1/filldb/freight/10/
+Authorization: Token 1b2db410571b0379cb93601af73d390b50375770
 Content-Type: application/json
 
 {
@@ -134,17 +175,12 @@ Content-Type: application/json
 }
 ###
 GET http://127.0.0.1:8000/api/v1/filldb/state/
-Authorization: Token c358fee828d2093a8fa6969ca0eea18320701d36
-Content-Type: application/json
-###
-GET http://127.0.0.1:8000/api/v1/filldb/state/
-Authorization: Token c358fee828d2093a8fa6969ca0eea18320701d36
+Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
 Content-Type: application/json
 
-{"state": "Казахстан"}
 ###
-GET http://127.0.0.1:8000/api/v1/filldb/state/3/
-Authorization: Token c358fee828d2093a8fa6969ca0eea18320701d36
+GET http://127.0.0.1:8000/api/v1/filldb/state/2/
+Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
 Content-Type: application/json
 ###
 POST http://127.0.0.1:8000/api/v1/user/register

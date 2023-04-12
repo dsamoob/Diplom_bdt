@@ -3,6 +3,10 @@ from django.shortcuts import render
 import xlrd
 from requests import get
 import urllib.request
+
+from rest_framework.decorators import permission_classes
+
+from backend.permissions import IsStaff, IsCneeShpr, IsAuthenticated
 from django.contrib.auth.models import User, Group
 from rest_framework import viewsets
 from rest_framework import permissions
@@ -12,7 +16,7 @@ from django.http import JsonResponse
 from backend.models import User, State, ConfirmEmailToken, City, FreightRates, StockType, CompanyDetails, ShipAddresses
 from backend.serializers import StateSerializer, UserSerializer, CitySerializer, \
     StateDescriptionSerializer, FreightRatesSerializer, CityFreightSerializer, StockTypeSerializer, \
-    CompanyDetailsSerializer
+    CompanyDetailsSerializer, ShipToSerializer, CompanyDetailsUpdateSerializer, ShipAddressesUpdateSerializer, ShipAddressesSerializer
 from backend.signals import new_user_registered
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
@@ -23,58 +27,65 @@ from ujson import loads as load_json
 from rest_framework.generics import ListAPIView
 
 class UserShipTo(APIView):
+    permission_classes = (IsCneeShpr, )
+    """
+    Получение всего списка адресов или одного по ид
+    """
     def get(self, request, pk=None, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
-        if request.user.type not in ['shpr', 'cnee']:
-            return JsonResponse({'Status': False, 'Error': 'Only for suppliers or cnee'}, status=403)
-
+        com = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id)
+        if pk:
+            com = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id, id=pk)
+        if com:
+            serializer = ShipToSerializer(com, many=True)
+            return Response(serializer.data)
+        return JsonResponse({'error': 'no rights'})
+    """
+    Размещение новго адреса
+    """
     def post(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
-        if request.user.type not in ['shpr', 'cnee']:
-            return JsonResponse({'Status': False, 'Error': 'Only for suppliers or cnee'}, status=403)
-        if {'city', 'company', 'street', 'bld', 'contact_person', 'phone'}.issubset(request.data):
-            pass
+        serializer = ShipAddressesSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        company = CompanyDetails.objects.filter(id=request.data['company'], user=request.user.id)
+        # проверка компании на соотвествие пользователю
+        if not company:
+            return JsonResponse({'error': f'company with id {request.data["company"]} belongs to other user'})
+        serializer.create(validated_data=request.data)
+        return JsonResponse({'created': f'object{serializer}'})
 
     def put(self, request, pk=None, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
-        if request.user.type not in ['shpr', 'cnee']:
-            return JsonResponse({'Status': False, 'Error': 'Only for suppliers or cnee'}, status=403)
         if not pk:
-            return JsonResponse({'error': 'Method put not allowed'})
+            return JsonResponse({'error': 'No pk'})
         try:
-            instance = ShipAddresses.objects.get(id=pk, user_id=request.user.id)
+            if CompanyDetails.objects.get(id=request.data['company']).user.id != request.user.id:
+                return JsonResponse({'error': 'incorrect comany data'})
+            instance = ShipAddresses.objects.get(id=pk)
         except:
             return JsonResponse({'error': 'object doen not exvcists'})
+        serializer = ShipAddressesUpdateSerializer(data=request.data, instance=instance, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return JsonResponse({'status': f'item with pk{pk} updated'})
+
+
+
 class UserCompanies(APIView):
+    permission_classes = (IsCneeShpr,)
     """
     Работа с компаниями покупателя и поставщика, один пользователь может представлять несколько компаний,
     вне зависимости от того поставщик он или покупатель.
-    Также пользователь может быть одновременно поставщиком и покупателем
+    Также пользователь может быть одновременно поставщиком и покупателем.
     """
     def get(self, request, pk=None, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
-        if request.user.type not in ['shpr', 'cnee', 'shpr/cnee']:
-            return JsonResponse({'Status': False, 'Error': 'Only for shpr, cnee or shpr/cnee'}, status=403)
+        company_list = CompanyDetails.objects.select_related('city', 'user').filter(user_id=request.user.id, active=True).all()
         if pk:
-            obj = CompanyDetails.objects.filter(id=pk, active=True)
-            serializer = CompanyDetailsSerializer(obj, many=True)
-            return Response(serializer.data)
-        obj = CompanyDetails.objects.select_related('city', 'user').filter(user_id=request.user.id, active=True).all()
-        serializer = CompanyDetailsSerializer(obj, many=True)
+            company_list = CompanyDetails.objects.select_related('city', 'user').filter(id=pk, active=True)
+        serializer = CompanyDetailsSerializer(company_list, many=True)
         return Response(serializer.data)
 
     """
     Добавление компаний к пользователю подразумевает только добавление одной компании за раз
     """
     def post(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
-        if request.user.type not in ['shpr', 'cnee', 'shpr/cnee']:
-            return JsonResponse({'Status': False, 'Error': 'Only for shpr, cnee or shpr/cnee'}, status=403)
         if {'name', 'state', 'city', 'street', 'bld', 'bank_details'}.issubset(request.data):
             try:
                 obj = CompanyDetails.objects.get(name=request.data['name'])
@@ -97,60 +108,52 @@ class UserCompanies(APIView):
         return JsonResponse({'status': 'incorrect fields'})
 
     def put(self, request, pk=None, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
-        if request.user.type not in ['shpr', 'cnee', 'shpr/cnee']:
-            return JsonResponse({'Status': False, 'Error': 'Only for shpr, cnee or shpr/cnee'}, status=403)
         if not pk:
             return JsonResponse({'error': 'Method put not allowed'})
         if not {'company_type'}.issubset(request.data):
             request.data['company_type'] = request.user.type
         try:
             instance = CompanyDetails.objects.get(id=pk, user_id=request.user.id)
-            print('instance')
         except:
-            return JsonResponse({'error': 'object doen not exvcists'})
-        print(request.data)
-        serializer = CompanyDetailsSerializer(data=request.data, instance=instance)
+            return JsonResponse({'error': 'object do not exists'})
+        state, _ = State.objects.get_or_create(name=request.data['state'])
+        city, _ = City.objects.get_or_create(name=request.data['city'], state_id=state.id)
+        request.data['user'] = request.user.id
+        request.data['city'] = city.id
+        serializer = CompanyDetailsUpdateSerializer(data=request.data, instance=instance)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return JsonResponse({'status': f'item with pk{pk} updated'})
 
+    """
+    При удалении компании, фактического удаления не происходит, меняется лишь статус отображения как для нее,
+    так и для всех адресов доставки для данной компании
+    """
     def delete(self, request, pk=None, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
-        elif request.user.type not in ['shpr', 'cnee', 'shpr/cnee']:
-            return JsonResponse({'Status': False, 'Error': 'Only for shpr, cnee or shpr/cnee'}, status=403)
-        elif not pk:
+        if not pk:
             return JsonResponse({'error': 'no PK'})
-        obj = CompanyDetails.objects.get(id=pk, user_id=request.user.id)
-        obj.active = False
-        obj.save()
+        company = CompanyDetails.objects.get(id=pk, user_id=request.user.id)
+        company.active = False
+        company.save()
+        addr = ShipAddresses.objects.filter(company_id=company.id).all()
+        for one in addr:
+            one.active = False
+            one.save()
         return JsonResponse({'status': f'{pk} deleted'})
 
 
-
-
 class SetStockTypes(APIView):
+    permission_classes = (IsStaff, )
     """
     Класс загрузки типов сток листов в дб и получения их списка, осуществляется только пользователями группы staff
     """
-    def check_user(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
-        if request.user.type != 'staff':
-            return JsonResponse({'Status': False, 'Error': 'Только для персонала'}, status=403)
-        return True
-
     def post(self, request, *args, **kwargs):
-        self.check_user(request)
         if {'stock_types'}.issubset(request.data):
             for element in request.data['stock_types']:
                 StockType.objects.get_or_create(name=element['name'].capitalize())
             return JsonResponse({'status': 'stock_types finished'})
 
     def get(self, request, *args, **kwargs):
-        self.check_user(request)
         obj = StockType.objects.all()
         serializer = StockTypeSerializer(obj, many=True)
         return Response(serializer.data)
@@ -159,24 +162,14 @@ class SetStockTypes(APIView):
     """
 
 class SetFreightRates(APIView):
+    permission_classes = (IsStaff,)
     """"
     Загрузка значений стоимости фрахта досутпно только пользователям групы staff
-    """
-    def check_user(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
-        if request.user.type != 'staff':
-            return JsonResponse({'Status': False, 'Error': 'Только для персонала'}, status=403)
-        return True
-
-    """
     Загрузка возможна только по ссылке с файлом формата xls(не XLSX)
     """
     def post(self, request, *args, **kwargs):
-        self.check_user(request)
         if not {'url', 'state'}.issubset(request.data):
             return JsonResponse({'status': False, 'message': 'incorrect fields, need url and state'})
-
         url = request.data.get('url')
         validate_url = URLValidator()
         try:
@@ -198,39 +191,23 @@ class SetFreightRates(APIView):
             FreightRates.objects.update_or_create(POL=row[0], city_id=city.id, price=row[2], minimal_weight=row[3])
 
         return JsonResponse({'stat': 'ok'})
-
     """ 
     Получение информации по стоимостям фрахта для всех городов по названию страны или для определнного города по его названию
     """
-
-    def get(self, request, *args, **kwargs):
-        self.check_user(request)
-        if {'city'}.issubset(request.data):
-            obj = City.objects.filter(name=request.data['city']).first()
-            serializer = CityFreightSerializer(obj)
-            return Response(serializer.data)
-        obj = City.objects.all()
-        return Response(CityFreightSerializer(obj, many=True).data)
-
+    def get(self, request, pk=None, *args, **kwargs):
+        city_list = City.objects.all()
+        if pk:
+            city_list = City.objects.filter(id=pk)
+        return Response(CityFreightSerializer(city_list, many=True).data)
     """
     Удаление не предусмотрено
     """
 
 
-
 class UploadStateCity(APIView):
-    # проверка аутентификации пользователя и его статус.
-    def check_user(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
-        if request.user.type != 'staff':
-            return JsonResponse({'Status': False, 'Error': 'Только для персонала'}, status=403)
-        return True
-
-    """ внесениюе в дб информации по странам и городам """
-
+    permission_classes = (IsStaff,)
+    """ Внесение в дб информации по странам и городам """
     def post(self, request, *args, **kwargs):
-        self.check_user(request)
         if {'state'}.issubset(request.data):
             for state in request.data['state']:
                 obj, _ = State.objects.get_or_create(name=state['name'].capitalize())
@@ -239,17 +216,14 @@ class UploadStateCity(APIView):
             return JsonResponse({'status': 'State and cities filled successfully'})
         return JsonResponse({"status": "incorrect fields"})
 
-    """ получение информации о городах по названию страны, ил страны или польная выгрузка """
+    """ 
+    Получение информации о городах по ид страны или полная выгрузка
+    """
 
     def get(self, request, pk=None, *args, **kwargs):
-        self.check_user(request)
         query_set = State.objects.all()
         if pk:
             query_set = State.objects.filter(id=pk).all()
-        elif {'state'}.issubset(request.data):
-            query_set = State.objects.filter(name=request.data['state'].capitalize()).all()
-        elif not query_set:
-            return JsonResponse({'status': 'not in DB'})
         return Response(StateSerializer(query_set, many=True).data)
 
 
@@ -257,7 +231,6 @@ class LoginAccount(APIView):
     """
     Класс для авторизации пользователей
     """
-
     # Авторизация методом POST
     def post(self, request, *args, **kwargs):
         if {'email', 'password'}.issubset(request.data):
@@ -274,21 +247,18 @@ class LoginAccount(APIView):
 
 
 class AccountDetails(APIView):
+    permission_classes = (IsAuthenticated, )
     """
     Класс для работы данными пользователя
     """
 
     # получить данные
     def get(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
 
     # Редактирование методом POST
     def post(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
         # проверяем обязательные аргументы
         if 'password' in request.data:
             errors = {}
@@ -334,7 +304,6 @@ class RegisterAccount(APIView):
                 # проверяем данные для уникальности имени пользователя
                 request.data._mutable = True
                 request.data.update({})
-
                 user_serializer = UserSerializer(data=request.data)
                 if user_serializer.is_valid():
                     # сохраняем пользователя
@@ -345,7 +314,6 @@ class RegisterAccount(APIView):
                     return JsonResponse({'Status': True})
                 else:
                     return JsonResponse({'Status': False, 'Errors': user_serializer.errors})
-
         return JsonResponse({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'})
 
 
@@ -353,7 +321,6 @@ class ConfirmAccount(APIView):
     """
     Класс для подтверждения почтового адреса
     """
-
     # Регистрация методом POST
     def post(self, request, *args, **kwargs):
         # проверяем обязательные аргументы

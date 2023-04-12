@@ -3,7 +3,6 @@ from rest_framework import serializers
 
 
 class CitySerializer(serializers.ModelSerializer):
-
     class Meta:
         model = City
         fields = ('id', 'name')
@@ -16,14 +15,16 @@ class FreightRatesSerializer(serializers.ModelSerializer):
 
 
 class CityFreightSerializer(serializers.ModelSerializer):
-    cities = FreightRatesSerializer(many=True)
+    POLs = FreightRatesSerializer(many=True)
+
     class Meta:
         model = City
-        fields = ['name', 'cities']
+        fields = ['id', 'name', 'POLs']
 
 
 class StateSerializer(serializers.ModelSerializer):
     cities = CitySerializer(many=True)
+
     class Meta:
         model = State
         fields = ('name', 'id', 'cities')
@@ -42,47 +43,94 @@ class StockTypeSerializer(serializers.ModelSerializer):
         model = StockType
         fields = ['id', 'name']
 
+
 class ShipToSerializer(serializers.ModelSerializer):
-    class Meta:
-        model =ShipAddresses
-        fields = ['']
-
-class CompanyDetailsSerializer(serializers.ModelSerializer):
-
-    state = serializers.SerializerMethodField('get_state')
     city = serializers.SerializerMethodField('get_city')
+    state = serializers.SerializerMethodField('get_state')
 
     def get_state(self, obj):
-        return f'{obj.city}'
-
-    def get_city(self, obj):
         return f'{obj.city.state}'
 
+    def get_city(self, obj):
+        return f'{obj.city}'
+
+    class Meta:
+        model = ShipAddresses
+        fields = ['id', 'state', 'city', 'street', 'contact_person', 'phone', 'ship_target', 'company_id' ]
+
+class ShipAddressesUpdateSerializer(serializers.ModelSerializer):
+
+    def update(self, instance, validated_data):
+        instance.bld = validated_data.get('bld', instance.bld)
+        instance.street = validated_data.get('street', instance.street)
+        instance.active = validated_data.get('active', True)
+        instance.ship_target = validated_data.get('ship_target', instance.ship_target)
+        instance.phone = validated_data.get('phone', instance.phone)
+        instance.contact_person = validated_data.get('contact_person', instance.contact_person)
+        instance.company = validated_data.get('company', instance.company)
+        instance.city = validated_data.get('city', instance.city)
+
+        instance.save()
+        return instance
+    class Meta:
+        model = ShipAddresses
+        fields = '__all__'
+
+
+class ShipAddressesSerializer(serializers.ModelSerializer):
+    city = serializers.SerializerMethodField('get_city')
+
     def create(self, validated_data):
-        print(f'{validated_data=}')
-        print(f'{validated_data["user"]}')
-        # validated_data['city_id'] = 1
-        # validated_data['user_id'] = 1
-        print('created func')
+        validated_data['city'] = City.objects.get(id=validated_data['city'])
+        validated_data['company'] = CompanyDetails.objects.get(id=validated_data['company'])
+        return ShipAddresses.objects.create(**validated_data)
+
+    def validate(self, data):
+        return data
+
+    class Meta:
+        model = ShipAddresses
+        fields = ['id', 'ship_target', 'contact_person', 'phone', 'city', 'street', 'bld', 'company']
+
+
+class CompanyDetailsSerializer(serializers.ModelSerializer):
+    state = serializers.SerializerMethodField('get_state')
+    city = serializers.SerializerMethodField('get_city')
+    ship_addr = ShipAddressesSerializer(many=True, read_only=True)
+
+    def get_state(self, obj):
+        return f'{obj.city.state}'
+
+    def get_city(self, obj):
+        return f'{obj.city}'
+
+    def create(self, validated_data):
         return CompanyDetails.objects.create(**validated_data)
 
+    class Meta:
+        model = CompanyDetails
+        fields = ('id', 'name', 'city', 'state', 'street', 'bld', 'bank_details', 'company_type', 'active', 'ship_addr')
+        read_only_fields = ('id',)
+        extra_kwargs = {
+            'user': {'write_only': True}
+        }
+
+
+class CompanyDetailsUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         instance.bank_details = validated_data.get('bank_details', instance.bank_details)
         instance.bld = validated_data.get('bld', instance.bld)
         instance.street = validated_data.get('street', instance.street)
         instance.name = validated_data.get('name', instance.name)
         instance.active = validated_data.get('active', True)
-        instance.company_type = validated_data.get('comapny_type', instance.company_type)
+        instance.company_type = validated_data.get('company_type', instance.company_type)
+        instance.city_id = validated_data.get('city', instance.city.id)
         instance.save()
         return instance
 
     class Meta:
         model = CompanyDetails
-        fields = ('id', 'name', 'city', 'state', 'street', 'bld', 'bank_details', 'company_type', 'active')
-        read_only_fields = ('id',)
-        extra_kwargs = {
-            'user': {'write_only': True}
-        }
+        fields = '__all__'
 
 
 ###______________--
@@ -91,6 +139,5 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'first_name', 'last_name', 'email',  'phone', 'user_companies', 'username', 'type')
+        fields = ('id', 'first_name', 'last_name', 'email', 'phone', 'user_companies', 'username', 'type')
         read_only_fields = ('id',)
-

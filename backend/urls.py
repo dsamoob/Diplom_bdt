@@ -12,9 +12,11 @@ urlpatterns = [
     path('user/details/company', UserCompanies.as_view(), name='user-company-details'),
     path('user/details/company/<pk>/', UserCompanies.as_view(), name='user-company-details'),
     path('user/details/shipto/', UserShipTo.as_view(), name='user-ship-to'),
+    path('user/details/shipto/<pk>/', UserShipTo.as_view(), name='user-ship-to'),
     path('filldb/state/', UploadStateCity.as_view(), name='state'),
     path('filldb/state/<pk>/', UploadStateCity.as_view(), name='state'),
     path('filldb/freight/', SetFreightRates.as_view(), name='freight'),
+    path('filldb/freight/<pk>/', SetFreightRates.as_view(), name='freight'),
     path('filldb/stocktypes/', SetStockTypes.as_view(), name='stock_types'),
 
 
