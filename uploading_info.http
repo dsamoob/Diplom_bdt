@@ -1,5 +1,5 @@
 
-PUT http://127.0.0.1:8000/api/v1/user/details/shipto/26/
+PUT http://127.0.0.1:8000/api/v1/user/details/shipto/3/
 Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
 Content-Type: application/json
 
@@ -13,11 +13,14 @@ Content-Type: application/json
 }
 ###
 
-GET http://127.0.0.1:8000/api/v1/user/details/shipto/7/
+GET http://127.0.0.1:8000/api/v1/user/details/shipto/
 Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
 Content-Type: application/json
 
-
+###
+DELETE http://127.0.0.1:8000/api/v1/user/details/shipto/3/
+Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Content-Type: application/json
 
 ###
 POST http://127.0.0.1:8000/api/v1/user/details/shipto/

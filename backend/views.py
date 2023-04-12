@@ -1,15 +1,7 @@
 from django.contrib.auth.password_validation import validate_password
-from django.shortcuts import render
 import xlrd
-from requests import get
 import urllib.request
-
-from rest_framework.decorators import permission_classes
-
 from backend.permissions import IsStaff, IsCneeShpr, IsAuthenticated
-from django.contrib.auth.models import User, Group
-from rest_framework import viewsets
-from rest_framework import permissions
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from django.http import JsonResponse
@@ -23,8 +15,7 @@ from django.contrib.auth import authenticate
 from django.core.validators import URLValidator
 from django.core.exceptions import ValidationError
 import ssl
-from ujson import loads as load_json
-from rest_framework.generics import ListAPIView
+
 
 class UserShipTo(APIView):
     permission_classes = (IsCneeShpr, )
@@ -32,15 +23,18 @@ class UserShipTo(APIView):
     Получение всего списка адресов или одного по ид
     """
     def get(self, request, pk=None, *args, **kwargs):
-        com = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id)
+        com = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id,
+                                                                     active=True)
         if pk:
-            com = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id, id=pk)
+            com = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id,
+                                                                         id=pk,
+                                                                         active=True)
         if com:
             serializer = ShipToSerializer(com, many=True)
             return Response(serializer.data)
         return JsonResponse({'error': 'no rights'})
     """
-    Размещение новго адреса
+    Размещение нового адреса
     """
     def post(self, request, *args, **kwargs):
         serializer = ShipAddressesSerializer(data=request.data)
@@ -52,12 +46,18 @@ class UserShipTo(APIView):
         serializer.create(validated_data=request.data)
         return JsonResponse({'created': f'object{serializer}'})
 
+    """
+    Можно обновлять удаленный ранее обьект с помощью поиска по пк, он будет возвращен из адленных.
+    """
+
     def put(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
         try:
+            # проверка на принадлежность компании пользователю
             if CompanyDetails.objects.get(id=request.data['company']).user.id != request.user.id:
                 return JsonResponse({'error': 'incorrect comany data'})
+            # проверка на ид адреса
             instance = ShipAddresses.objects.get(id=pk)
         except:
             return JsonResponse({'error': 'object doen not exvcists'})
@@ -65,8 +65,22 @@ class UserShipTo(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return JsonResponse({'status': f'item with pk{pk} updated'})
+    """
+    Фактическое удаление не предусмотренно т.к. адрес можно аждлить, а он ранее участвовал в доставках, потому меняется
+    статус отображения "active"
+    """
 
-
+    def delete(self, request, pk=None, *args, **kwargs):
+        if not pk:
+            return JsonResponse({'error': 'need pk'})
+        com = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id,
+                                                                     id=pk,
+                                                                     active=True).first()
+        if not com:
+            return JsonResponse({'error': 'no object'})
+        com.active = False
+        com.save()
+        return JsonResponse({'status': 'deleted', 'object': f'{ShipToSerializer(com).data}'})
 
 class UserCompanies(APIView):
     permission_classes = (IsCneeShpr,)
