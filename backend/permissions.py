@@ -16,3 +16,5 @@ class IsCneeShpr(BasePermission):
         return request.user and request.user.is_authenticated and request.user.type in ['cnee', 'shpr', 'shpr/cnee']
 
 
+
+

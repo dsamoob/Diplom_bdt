@@ -85,6 +85,9 @@ class ShipAddressesSerializer(serializers.ModelSerializer):
         validated_data['company'] = CompanyDetails.objects.get(id=validated_data['company'])
         return ShipAddresses.objects.create(**validated_data)
 
+    def get_city(self, obj):
+        return f'{obj.city}'
+
     def validate(self, data):
         return data
 
@@ -104,8 +107,6 @@ class CompanyDetailsSerializer(serializers.ModelSerializer):
     def get_city(self, obj):
         return f'{obj.city}'
 
-    def create(self, validated_data):
-        return CompanyDetails.objects.create(**validated_data)
 
     class Meta:
         model = CompanyDetails
@@ -127,6 +128,20 @@ class CompanyDetailsUpdateSerializer(serializers.ModelSerializer):
         instance.city_id = validated_data.get('city', instance.city.id)
         instance.save()
         return instance
+
+    def get_or_create(self, validated_data):
+        validated_data['city'] = City.objects.get(id=validated_data['city'])
+        validated_data['user'] = User.objects.get(id=validated_data['user'])
+        validated_data['company_type'] = validated_data['user'].type
+        obj, _ = CompanyDetails.objects.get_or_create(**validated_data)
+        obj.active = True
+        obj.save()
+        ship_to = ShipAddresses.objects.filter(company=obj.id).all()
+        if ship_to:
+            for element in ship_to:
+                element.active = True
+                element.save()
+        return obj
 
     class Meta:
         model = CompanyDetails

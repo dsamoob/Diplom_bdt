@@ -45,27 +45,25 @@ Content-Type: application/json
 
 
 ### ___User Company _____
-PUT http://127.0.0.1:8000/api/v1/user/details/company/5/
-Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+PUT http://127.0.0.1:8000/api/v1/user/details/company/16/
+Authorization: Token 14215596090f7653a9f8eea4b8ed6a3d5356e636
 Content-Type: application/json
 
 {
-  "name":  "VoronezhPlavMetall",
-  "state": "Россия",
-  "city": "Москва",
-  "street": "kuloung st. ",
-  "bld": "4A",
-  "bank_details": "National Bank of Thai"
-}
+    "name":  "alesdfksia",
+    "city": 3,
+    "street": "Jalan Lekar",
+    "bld": 21231,
+    "bank_details": "HSCB Bank Singapore, A/S 80000000"
+  }
 ###
 POST http://127.0.0.1:8000/api/v1/user/details/company
-Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Authorization: Token 14215596090f7653a9f8eea4b8ed6a3d5356e636
 Content-Type: application/json
 
 {
-    "name":  "QHF1FT",
-    "state": "Singapore",
-    "city": "Singapore",
+    "name":  "alesdfksia",
+    "city": 3,
     "street": "Jalan Lekar",
     "bld": 21231,
     "bank_details": "HSCB Bank Singapore, A/S 80000000"
@@ -77,19 +75,18 @@ Content-Type: application/json
 
 {
     "name":  "КолбаскиООО",
-    "state": "Россия",
-    "city": "Волгоград",
+    "city": 4,
     "street": "Улица восстания негритят",
     "bld": 18,
     "bank_details": "какой-то банк"
   }
 ###
-DELETE http://127.0.0.1:8000/api/v1/user/details/company/5/
-Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+DELETE http://127.0.0.1:8000/api/v1/user/details/company/16/
+Authorization: Token 14215596090f7653a9f8eea4b8ed6a3d5356e636
 Content-Type: application/json
 
 ###
-GET http://127.0.0.1:8000/api/v1/user/details/company/5/
+GET http://127.0.0.1:8000/api/v1/user/details/company/17/
 Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
 Content-Type: application/json
 
@@ -137,8 +134,8 @@ Content-Type: application/json
 }
 
 ###
-GET http://127.0.0.1:8000/api/v1/filldb/freight/10/
-Authorization: Token 1b2db410571b0379cb93601af73d390b50375770
+GET http://127.0.0.1:8000/api/v1/filldb/freight/110/
+Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
 Content-Type: application/json
 
 {
@@ -182,7 +179,7 @@ Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
 Content-Type: application/json
 
 ###
-GET http://127.0.0.1:8000/api/v1/filldb/state/2/
+GET http://127.0.0.1:8000/api/v1/filldb/state/7/
 Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
 Content-Type: application/json
 ###

@@ -77,10 +77,11 @@ class UserShipTo(APIView):
                                                                      id=pk,
                                                                      active=True).first()
         if not com:
-            return JsonResponse({'error': 'no object'})
+            return JsonResponse({'error': 'no item with this pk or have no rights'})
         com.active = False
         com.save()
         return JsonResponse({'status': 'deleted', 'object': f'{ShipToSerializer(com).data}'})
+
 
 class UserCompanies(APIView):
     permission_classes = (IsCneeShpr,)
@@ -90,63 +91,67 @@ class UserCompanies(APIView):
     Также пользователь может быть одновременно поставщиком и покупателем.
     """
     def get(self, request, pk=None, *args, **kwargs):
-        company_list = CompanyDetails.objects.select_related('city', 'user').filter(user_id=request.user.id, active=True).all()
+        company_list = CompanyDetails.objects.select_related('city', 'user').filter(user=request.user.id,
+                                                                                    active=True)
         if pk:
-            company_list = CompanyDetails.objects.select_related('city', 'user').filter(id=pk, active=True)
-        serializer = CompanyDetailsSerializer(company_list, many=True)
+            company_list = CompanyDetails.objects.select_related('city', 'user').filter(user=request.user.id,
+                                                                                        id=pk,
+                                                                                        active=True)
+        if not company_list:
+            return JsonResponse({'error': 'no item with this pk or have no rights'})
+        serializer = CompanyDetailsSerializer(data=company_list, many=True)
+        serializer.is_valid()
         return Response(serializer.data)
 
     """
-    Добавление компаний к пользователю подразумевает только добавление одной компании за раз
+    Добавление компаний к пользователю подразумевает только добавление одной компании за раз, также
+    происходит поиск совпадений по бд (если пользователь удалил а потом пытается создать заново), если 
+    находит ранее удаленную запись - меняет ее статус и статус всех адресов, которые были связаны с ней.
+    П.С. - лишнее усложнение
     """
     def post(self, request, *args, **kwargs):
-        if {'name', 'state', 'city', 'street', 'bld', 'bank_details'}.issubset(request.data):
-            try:
-                obj = CompanyDetails.objects.get(name=request.data['name'])
-                obj.active = True
-                obj.save()
-                return JsonResponse({'status': False, 'come': 'back'})
-            except:
-                state, _ = State.objects.get_or_create(name=request.data['state'].capitalize())
-                city, _ = City.objects.get_or_create(name=request.data['city'].capitalize(),
-                                                     state_id=state.id)
-                obj, _ = CompanyDetails.objects.get_or_create(user_id=request.user.id,
-                                                              name=request.data['name'],
-                                                              city=city,
-                                                              street=request.data['street'],
-                                                              bld=request.data['bld'],
-                                                              bank_details=request.data['bank_details'],
-                                                              company_type=request.user.type)
-
-            return Response({'created': obj.id})
-        return JsonResponse({'status': 'incorrect fields'})
-
+        if not {'name', 'city', 'street', 'bld', 'bank_details'}.issubset(request.data):
+            return JsonResponse({'status': 'incorrect fields'})
+        request.data['company_type'] = request.user.type
+        request.data['user'] = request.user.id
+        serializer = CompanyDetailsUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.get_or_create(validated_data=request.data)
+        return JsonResponse({'status': serializer.data})
+    """
+    Изменение записи - происходит поиск по бд определнной записи с отсевом по авторству.
+    если пользователь хочет изменить ранее удаленную запись то она восстанавливается и восстанавливаются все 
+    адреса доставки связанные с ней. П.С. совершенно не логично, как он может изменить то, чего не видит... 
+    """
     def put(self, request, pk=None, *args, **kwargs):
         if not pk:
-            return JsonResponse({'error': 'Method put not allowed'})
-        if not {'company_type'}.issubset(request.data):
-            request.data['company_type'] = request.user.type
-        try:
-            instance = CompanyDetails.objects.get(id=pk, user_id=request.user.id)
-        except:
-            return JsonResponse({'error': 'object do not exists'})
-        state, _ = State.objects.get_or_create(name=request.data['state'])
-        city, _ = City.objects.get_or_create(name=request.data['city'], state_id=state.id)
+            return JsonResponse({'error': 'no pk'})
+        instance = CompanyDetails.objects.filter(id=pk, user=request.user.id).first()
+        if not instance:
+            return JsonResponse({'error': 'no item with this pk or have no rights'})
+        request.data['company_type'] = request.user.type
         request.data['user'] = request.user.id
-        request.data['city'] = city.id
         serializer = CompanyDetailsUpdateSerializer(data=request.data, instance=instance)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        # происходит перебор адресов доставки по данной компании и их восстановление
+        ship_to = ShipAddresses.objects.filter(company=pk).all()
+        if ship_to:
+            for element in ship_to:
+                element.active = True
+                element.save()
         return JsonResponse({'status': f'item with pk{pk} updated'})
 
     """
-    При удалении компании, фактического удаления не происходит, меняется лишь статус отображения как для нее,
-    так и для всех адресов доставки для данной компании
+    При удалении компании, фактического удаления не происходит, меняется лишь статус отображения, как для нее,
+    так и для всех адресов доставки используемых в данной компании
     """
     def delete(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'no PK'})
-        company = CompanyDetails.objects.get(id=pk, user_id=request.user.id)
+        company = CompanyDetails.objects.filter(id=pk, user_id=request.user.id).first()
+        if not company:
+            return JsonResponse({'error': 'no item with this pk or have no rights'})
         company.active = False
         company.save()
         addr = ShipAddresses.objects.filter(company_id=company.id).all()
@@ -175,6 +180,7 @@ class SetStockTypes(APIView):
     удаление не предусматривается
     """
 
+
 class SetFreightRates(APIView):
     permission_classes = (IsStaff,)
     """"
@@ -190,14 +196,16 @@ class SetFreightRates(APIView):
             validate_url(url)
         except ValidationError as e:
             return JsonResponse({'status': False, 'error': str(e)})
-
         ssl._create_default_https_context = ssl._create_unverified_context  # проблема с SSL сертами
         urllib.request.urlretrieve(url, 'freightrates.xls')
         wb = xlrd.open_workbook('freightrates.xls')
         sheet = wb.sheet_by_index(0)
         state, _ = State.objects.get_or_create(name=request.data['state'].capitalize())  # идентифицируется страна
         """ 
-        Предполагается, что фаил идет всегда одного вида, меняется лишь количество строк 
+        Предполагается, что фаил всегда одного вида, меняется лишь количество строк 
+        Всегда происходит поиск совпадений и их обновление. 
+        В перспективе проще сделать сразу загрузку всех городов мира. с сортировкой по странам - упростит код и логику
+         
         """
         for rownum in range(1, sheet.nrows):  # предполагается, что в файле первая строка - заголовок
             row = sheet.row_values(rownum)
@@ -212,6 +220,8 @@ class SetFreightRates(APIView):
         city_list = City.objects.all()
         if pk:
             city_list = City.objects.filter(id=pk)
+            if not city_list:
+                return JsonResponse({'error': 'no item with this pk or have no rights'})
         return Response(CityFreightSerializer(city_list, many=True).data)
     """
     Удаление не предусмотрено
@@ -238,6 +248,8 @@ class UploadStateCity(APIView):
         query_set = State.objects.all()
         if pk:
             query_set = State.objects.filter(id=pk).all()
+            if not query_set:
+                return JsonResponse({'error': 'no item with this pk or have no rights'})
         return Response(StateSerializer(query_set, many=True).data)
 
 
