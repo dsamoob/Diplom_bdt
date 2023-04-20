@@ -56,7 +56,11 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'djoser',
     'django_rest_passwordreset',
+    "debug_toolbar",
 ]
+
+
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -66,7 +70,13 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
 ]
+
+if DEBUG:
+    MIDDLEWARE = ['debug_toolbar.middleware.DebugToolbarMiddleware'] + MIDDLEWARE
+
+
 
 ROOT_URLCONF = 'Diplom_bdt.urls'
 

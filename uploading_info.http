@@ -1,5 +1,61 @@
+GET http://127.0.0.1:8000/api/v1/stockcorrection
+Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
+Content-Type: application/json
 
-PUT http://127.0.0.1:8000/api/v1/user/details/shipto/3/
+
+###
+PUT http://127.0.0.1:8000/api/v1/stockcorrection/16/
+Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
+Content-Type: application/json
+
+{
+  "currency_rate":  79,
+  "status": "offered"
+}
+### ___Uploading stock list shpr/cnee-shpr
+GET http://127.0.0.1:8000/api/v1/uploadstock
+Authorization: Token user3shpr/cnee
+Content-Type: application/json
+
+###
+
+POST http://127.0.0.1:8000/api/v1/uploadstock/
+Authorization: Token user4shpr
+Content-Type: application/json
+
+{
+  "company": 5,
+  "orders_till_date" : "2023-04-23",
+  "shipment_date": "2023-04-30",
+  "stock_type": 3,
+  "bags_quantity": 4,
+  "box_weight": 13.4,
+  "ship_from": 2,
+  "transport_type": "Air",
+      "url": "sdfsdfdsf"
+
+
+}
+
+###
+PUT http://127.0.0.1:8000/api/v1/uploadstock/22/
+Authorization: Token user4shpr
+Content-Type: application/json
+
+{
+  "company": 5,
+  "stock_type": 1,
+  "bags_quantity": 4,
+  "box_weight": 14.4,
+  "ship_from": 2,
+  "transport_type": "Air",
+  "currency_type": "USD",
+  "new": "new"
+}
+
+
+### ___ShipperAddresses___
+PUT http://127.0.0.1:8000/api/v1/user/details/shipto/1/
 Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
 Content-Type: application/json
 
@@ -18,7 +74,7 @@ Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
 Content-Type: application/json
 
 ###
-DELETE http://127.0.0.1:8000/api/v1/user/details/shipto/3/
+DELETE http://127.0.0.1:8000/api/v1/user/details/shipto/1/
 Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
 Content-Type: application/json
 

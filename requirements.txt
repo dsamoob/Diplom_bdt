@@ -7,3 +7,4 @@ djangorestframework_simplejwt
 django-rest-passwordreset
 ujson
 xlrd
+rest_condition

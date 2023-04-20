@@ -3,14 +3,53 @@ from django.core.mail import EmailMultiAlternatives
 from django.dispatch import receiver, Signal
 from django_rest_passwordreset.signals import reset_password_token_created
 
-from backend.models import ConfirmEmailToken, User
+from backend.models import ConfirmEmailToken, User, CompanyDetails
 
 # new_user_registered = Signal(providing_args=['user_id'],)
 #
 # new_order = Signal(providing_args=['user_id'],)
 new_user_registered = Signal()
-
 new_order = Signal()
+new_stock_list = Signal()
+stock_list_update = Signal()
+
+@receiver(stock_list_update)
+def stock_list_update_signal(obj, request_data, **kwargs):
+    user = User.objects.get(type='staff')
+    msg = EmailMultiAlternatives(
+        f"новый сток лист от {obj.company.name}",
+
+        *request_data.data,
+        # from:
+        settings.EMAIL_HOST_USER,
+        # to:
+        [user.email]
+    )
+    msg.send()
+@receiver(new_stock_list)
+def new_stock_list_signal(nsl,  **kwargs):
+    """
+    Отправляем письмо пользователю с типом staff
+    """
+    # send an e-mail to the user-staff
+    user = User.objects.get(type='staff')
+    msg = EmailMultiAlternatives(
+        f"новый сток лист от {nsl.company.name}",
+
+        f"id: {nsl.id=}\n"
+        f"shipment_dat: {nsl.shipment_date}\n"
+        f"orders_till_date: {nsl.orders_till_date}\n"
+        f"stock_type: {nsl.stock_type.name}\n"
+        f"bags_quantity: {nsl.bags_quantity}\n"
+        f"box_weight: {nsl.box_weight}\n"
+        f"currency_type: {nsl.currency_type}\n"
+        f"transport_type: {nsl.transport_type}\n",
+        # from:
+        settings.EMAIL_HOST_USER,
+        # to:
+        [user.email]
+    )
+    msg.send()
 
 @receiver(reset_password_token_created)
 def password_reset_token_created(sender, instance, reset_password_token, **kwargs):
@@ -78,3 +117,6 @@ def new_order_signal(user_id, **kwargs):
         [user.email]
     )
     msg.send()
+
+
+

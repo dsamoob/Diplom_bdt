@@ -10,6 +10,13 @@ STOCK_TYPES = (
     ('Plants', 'растения')
 )
 
+STOCK_STATUS = (
+    ('uploaded', 'Загружено'),
+    ('offered', 'Выставлено'),
+    ('closed', 'Закрыто'),
+    ('finished', 'Завершено')
+)
+
 USER_TYPE_CHOICES = (
     ('shpr', 'Магазин'),
     ('cnee', 'Покупатель'),
@@ -34,6 +41,17 @@ SHIP_TARGETS = (
     ('ship_to_from', 'куда/откуда')
 )
 
+TRANSPORT_TYPE = (
+    ('Air', 'Самолет'),
+    ('Truck', 'Автомобиль'),
+)
+
+CURRENCY_TYPE = (
+    ('USD', 'Доллар США'),
+    ('EUR', 'Евро'),
+    ('CNY', 'Китайский Юань'),
+    ('RUB', 'Российский Рубль')
+)
 
 class UserManager(BaseUserManager):
     """
@@ -163,15 +181,18 @@ class StockType(models.Model):
 
 
 class StockList(models.Model):
-    company = models.ForeignKey(User, on_delete=models.CASCADE)
-    orders_till_date = models.DateTimeField(verbose_name='Дата окончания приема зказаов')
-    shipment_date = models.DateTimeField(verbose_name='Дата поставки')
+    name = models.CharField(max_length=100, blank=True)
+    company = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE)
+    orders_till_date = models.DateField(verbose_name='Дата окончания приема зказаов')
+    shipment_date = models.DateField(verbose_name='Дата поставки')
     stock_type = models.ForeignKey(StockType, on_delete=models.CASCADE)
     bags_quantity = models.IntegerField(default=4, verbose_name='Кол-во пакетов в коробке')
-    currency_rate = models.DecimalField(max_digits=4, decimal_places=2, verbose_name='Курс доллара')
-    status = models.BooleanField(default=True)
+    currency_type = models.CharField(max_length=10, choices=CURRENCY_TYPE, default='RUB')
+    currency_rate = models.DecimalField(max_digits=4, decimal_places=2, verbose_name='Курс доллара', default=1, blank=True)
+    status = models.CharField(max_length=15, choices=STOCK_STATUS, default='uploaded')
     box_weight = models.DecimalField(max_digits=4, decimal_places=2, verbose_name='Вес одной коробки')
     ship_from = models.ForeignKey(ShipAddresses, on_delete=models.CASCADE)
+    transport_type = models.CharField(max_length=15, choices=TRANSPORT_TYPE)
 
 
 class Item(models.Model):
@@ -179,8 +200,10 @@ class Item(models.Model):
     code = models.CharField(max_length=10)
     english_name = models.CharField(max_length=100, verbose_name='Местное название')
     scientific_name = models.CharField(max_length=100, verbose_name='Научное название')
-    russian_name = models.CharField(max_length=100, verbose_name='Русское название')
+    russian_name = models.CharField(max_length=100, verbose_name='Русское название', default=None)
     size = models.CharField(max_length=15, verbose_name='Размер', default='All size')
+
+
 
     def __str__(self):
         return f'{self.code} {self.english_name} {self.scientific_name} {self.russian_name} {self.size}'
@@ -189,10 +212,11 @@ class Item(models.Model):
 class StockListItem(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
     stock_list = models.ForeignKey(StockList, on_delete=models.CASCADE)
-    price = models.DecimalField(max_digits=7, decimal_places=2, verbose_name='Цена')
+    offer_price = models.DecimalField(max_digits=7, decimal_places=2, verbose_name='Цена закупка')
+    sale_price = models.DecimalField(max_digits=7, decimal_places=2, blank=True, verbose_name='Цена продажа')
     quantity_bag = models.IntegerField(verbose_name='Кол-во в пакете')
-    ordered = models.IntegerField(verbose_name='Заказано')
-    limit = models.IntegerField(verbose_name='Кол-во в наличии')
+    ordered = models.IntegerField(verbose_name='Заказано', default=0)
+    limit = models.IntegerField(verbose_name='Кол-во в наличии', default=None)
     english_name = models.CharField(max_length=100, verbose_name='Местное название', blank=True, default=None)
     scientific_name = models.CharField(max_length=100, verbose_name='Научное название', blank=True, default=None)
     russian_name = models.CharField(max_length=100, verbose_name='Русское название', blank=True, default=None)

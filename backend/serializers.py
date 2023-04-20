@@ -1,5 +1,8 @@
-from backend.models import User, CompanyDetails, State, City, ShipAddresses, FreightRates, StockType
+from backend.models import User, CompanyDetails, State, City, ShipAddresses, FreightRates, StockType, StockList
 from rest_framework import serializers
+from datetime import datetime as dt
+from datetime import timedelta as td
+from django.core.exceptions import ValidationError
 
 
 class CitySerializer(serializers.ModelSerializer):
@@ -148,6 +151,43 @@ class CompanyDetailsUpdateSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class StockListCreateSerializer(serializers.ModelSerializer):
+
+    def update(self, instance, validated_data):
+        print(instance)
+        instance.orders_till_date = validated_data.get('orders_till_date', instance.orders_till_date)
+        instance.shipment_date = validated_data.get('shipment_date', instance.shipment_date)
+        instance.bags_quantity = validated_data.get('bags_quantity', instance.bags_quantity)
+        instance.currency_rate = validated_data.get('currency_rate', instance.currency_rate)
+        instance.status = validated_data.get('status', instance.status)
+        instance.box_weight = validated_data.get('box_weight', instance.box_weight)
+        instance.company = validated_data.get('company', instance.company)
+        instance.stock_type = validated_data.get('stock_type', instance.stock_type)
+        instance.ship_from = validated_data.get('ship_from', instance.ship_from)
+        instance.currency_type = validated_data.get('currency_type', instance.currency_type)
+        instance.transport_type = validated_data.get('transport_type', instance.transport_type)
+        instance.save()
+        return instance
+
+    def get_or_create(self, validated_data):
+        validated_data['company'] = CompanyDetails.objects.filter(id=validated_data['company']).first()
+        validated_data['ship_from'] = ShipAddresses.objects.filter(id=validated_data['ship_from']).first()
+        validated_data['stock_type'] = StockType.objects.filter(id=validated_data['stock_type']).first()
+        obj, _ = StockList.objects.get_or_create(**validated_data)
+        return obj
+
+
+
+
+    class Meta:
+        model = StockList
+        fields = '__all__'
+
+class StockListReadSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = StockList
+        fields = '__all__'
 ###______________--
 class UserSerializer(serializers.ModelSerializer):
     user_companies = CompanyDetailsSerializer(read_only=True, many=True)

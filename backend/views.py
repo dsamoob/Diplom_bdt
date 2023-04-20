@@ -1,20 +1,101 @@
 from django.contrib.auth.password_validation import validate_password
 import xlrd
+from rest_condition import And, Or, Not
 import urllib.request
-from backend.permissions import IsStaff, IsCneeShpr, IsAuthenticated
+from backend.permissions import IsStaff, IsCneeShpr, IsAuthenticated, IsShprorCnShpr
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from django.http import JsonResponse
-from backend.models import User, State, ConfirmEmailToken, City, FreightRates, StockType, CompanyDetails, ShipAddresses
+from backend.models import User, State, ConfirmEmailToken, City, FreightRates, StockType, CompanyDetails, ShipAddresses, \
+    StockList
 from backend.serializers import StateSerializer, UserSerializer, CitySerializer, \
     StateDescriptionSerializer, FreightRatesSerializer, CityFreightSerializer, StockTypeSerializer, \
-    CompanyDetailsSerializer, ShipToSerializer, CompanyDetailsUpdateSerializer, ShipAddressesUpdateSerializer, ShipAddressesSerializer
-from backend.signals import new_user_registered
+    CompanyDetailsSerializer, ShipToSerializer, CompanyDetailsUpdateSerializer, ShipAddressesUpdateSerializer, ShipAddressesSerializer, \
+    StockListCreateSerializer, StockListReadSerializer
+from backend.signals import new_user_registered, new_stock_list, stock_list_update
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from django.core.validators import URLValidator
 from django.core.exceptions import ValidationError
 import ssl
+
+
+class StockCorrectionStaff(APIView):
+    permission_classes = (IsStaff, )
+    
+    def get(self, request, pk=None, *args, **kwargs):
+        obj = StockList.objects.all().exclude(status='finished')
+        if pk:
+            try:
+                obj = StockList.objects.get(id=pk)
+                serializer = StockListReadSerializer(obj)
+                return Response(serializer.data)
+            except:
+                return JsonResponse({'error': 'pk not found'})
+        serializer = StockListReadSerializer(obj, many=True)
+        return Response(serializer.data)
+
+    def put(self, request, pk=None, *args, **kwargs):
+        if not pk:
+            return JsonResponse({'error': 'No pk'})
+        try:
+            instance = StockList.objects.get(id=pk)
+            serializer = StockListCreateSerializer(data=request.data, instance=instance, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return JsonResponse({'status': f'pk {pk} updated'})
+        except:
+            return JsonResponse({'error': 'incorrect_data'})
+
+
+class StockUploading(APIView):
+    permission_classes = (IsShprorCnShpr, )
+
+    def get(self, request, pk=None, *args, **kwargs):
+        company_list = [i.id for i in CompanyDetails.objects.filter(user=request.user.id).all()]
+        if pk:
+            try:
+                company = StockList.objects.filter(id=pk).first()
+                if company.company.id in company_list:
+                    return Response(StockListReadSerializer(company).data)
+                else:
+                    return JsonResponse({'error': f'pk {pk} belongs to another user'})
+            except:
+                return JsonResponse({'error': f'pk {pk} belongs to another user'})
+        serializers = StockListReadSerializer(StockList.objects.filter(company__in=company_list).select_related('ship_from'), many=True)
+        return Response(serializers.data)
+
+    def post(self, request, *args, **kwargs):
+        serializer = StockListCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        ship_ad = ShipAddresses.objects.select_related('company').filter(id=request.data['ship_from'],
+                                                                         company=request.data['company'],
+                                                                         company__user=request.user.id).first()
+        if not ship_ad:
+            return JsonResponse({'error': f'company with id {request.data["company"]} belongs to other user or '
+                                          f'ship_from id incorrect'})
+        url = request.data.get('url', False)
+        if not url:
+            return JsonResponse({"url": ["Обязательное поле."]})
+        request.data.pop('url')
+        stock_list = serializer.get_or_create(validated_data=request.data)
+        new_stock_list.send(sender=self.__class__, nsl=stock_list)
+        return JsonResponse({'status': f'added {serializer.data}'})
+
+    def put(self, request, pk=None, *args, **kwargs):
+        if not pk:
+            return JsonResponse({'error': 'No pk'})
+        check = StockList.objects.select_related('company').filter(id=pk, company__user=request.user.id).first()
+        if not check:
+            return JsonResponse({'error': 'not belongs to u'})
+        return JsonResponse({'status': 'finished'})
+
+
+
+
+
+
+
 
 
 class UserShipTo(APIView):
@@ -56,7 +137,7 @@ class UserShipTo(APIView):
         try:
             # проверка на принадлежность компании пользователю
             if CompanyDetails.objects.get(id=request.data['company']).user.id != request.user.id:
-                return JsonResponse({'error': 'incorrect comany data'})
+                return JsonResponse({'error': 'incorrect company data'})
             # проверка на ид адреса
             instance = ShipAddresses.objects.get(id=pk)
         except:
