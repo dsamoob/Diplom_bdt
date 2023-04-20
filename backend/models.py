@@ -200,7 +200,7 @@ class Item(models.Model):
     code = models.CharField(max_length=10)
     english_name = models.CharField(max_length=100, verbose_name='Местное название')
     scientific_name = models.CharField(max_length=100, verbose_name='Научное название')
-    russian_name = models.CharField(max_length=100, verbose_name='Русское название', default=None)
+    russian_name = models.CharField(max_length=100, verbose_name='Русское название', blank=True)
     size = models.CharField(max_length=15, verbose_name='Размер', default='All size')
 
 
@@ -213,14 +213,14 @@ class StockListItem(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
     stock_list = models.ForeignKey(StockList, on_delete=models.CASCADE)
     offer_price = models.DecimalField(max_digits=7, decimal_places=2, verbose_name='Цена закупка')
-    sale_price = models.DecimalField(max_digits=7, decimal_places=2, blank=True, verbose_name='Цена продажа')
+    sale_price = models.DecimalField(max_digits=7, decimal_places=2, verbose_name='Цена продажа', blank=True, default=0)
     quantity_bag = models.IntegerField(verbose_name='Кол-во в пакете')
     ordered = models.IntegerField(verbose_name='Заказано', default=0)
-    limit = models.IntegerField(verbose_name='Кол-во в наличии', default=None)
-    english_name = models.CharField(max_length=100, verbose_name='Местное название', blank=True, default=None)
-    scientific_name = models.CharField(max_length=100, verbose_name='Научное название', blank=True, default=None)
-    russian_name = models.CharField(max_length=100, verbose_name='Русское название', blank=True, default=None)
-    size = models.CharField(max_length=15, verbose_name='Размер', blank=True, default=None)
+    limit = models.IntegerField(verbose_name='Кол-во в наличии', blank=True)
+    english_name = models.CharField(max_length=100, verbose_name='Местное название', blank=True)
+    scientific_name = models.CharField(max_length=100, verbose_name='Научное название', blank=True)
+    russian_name = models.CharField(max_length=100, verbose_name='Русское название', blank=True)
+    size = models.CharField(max_length=15, verbose_name='Размер', blank=True)
 
 
 

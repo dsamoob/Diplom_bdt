@@ -1,4 +1,5 @@
-from backend.models import User, CompanyDetails, State, City, ShipAddresses, FreightRates, StockType, StockList
+from backend.models import User, CompanyDetails, State, \
+    City, ShipAddresses, FreightRates, StockType, StockList, Item, StockListItem
 from rest_framework import serializers
 from datetime import datetime as dt
 from datetime import timedelta as td
@@ -188,6 +189,32 @@ class StockListReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = StockList
         fields = '__all__'
+
+
+
+class ItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Item
+        fields = '__all__'
+
+    def get_or_create(self, data):
+        obj, _ = Item.objects.get_or_create(**data)
+        return obj
+
+class StockListItemSerializer(serializers.ModelSerializer):
+
+    def get_or_create(self, data):
+        limit = data.get('limit', False)
+        if limit == '':
+            data['limit'] = 0
+
+        obj, _ = StockListItem.objects.get_or_create(**data)
+        return obj
+    class Meta:
+        model = StockListItem
+        fields = '__all__'
+
+
 ###______________--
 class UserSerializer(serializers.ModelSerializer):
     user_companies = CompanyDetailsSerializer(read_only=True, many=True)

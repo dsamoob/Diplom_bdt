@@ -1,6 +1,7 @@
 from django.contrib.auth.password_validation import validate_password
 import xlrd
 from rest_condition import And, Or, Not
+from datetime import date
 import urllib.request
 from backend.permissions import IsStaff, IsCneeShpr, IsAuthenticated, IsShprorCnShpr
 from rest_framework.authtoken.models import Token
@@ -10,8 +11,8 @@ from backend.models import User, State, ConfirmEmailToken, City, FreightRates, S
     StockList
 from backend.serializers import StateSerializer, UserSerializer, CitySerializer, \
     StateDescriptionSerializer, FreightRatesSerializer, CityFreightSerializer, StockTypeSerializer, \
-    CompanyDetailsSerializer, ShipToSerializer, CompanyDetailsUpdateSerializer, ShipAddressesUpdateSerializer, ShipAddressesSerializer, \
-    StockListCreateSerializer, StockListReadSerializer
+    CompanyDetailsSerializer, ShipToSerializer, CompanyDetailsUpdateSerializer, ShipAddressesUpdateSerializer,\
+    ShipAddressesSerializer, ItemSerializer, StockListCreateSerializer, StockListReadSerializer, StockListItemSerializer
 from backend.signals import new_user_registered, new_stock_list, stock_list_update
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
@@ -74,13 +75,45 @@ class StockUploading(APIView):
         if not ship_ad:
             return JsonResponse({'error': f'company with id {request.data["company"]} belongs to other user or '
                                           f'ship_from id incorrect'})
-        url = request.data.get('url', False)
-        if not url:
-            return JsonResponse({"url": ["Обязательное поле."]})
+        url = request.data.get('url')
+        validate_url = URLValidator()
+        try:
+            validate_url(url)
+        except ValidationError as e:
+            return JsonResponse({'status': False, 'error': str(e)})
         request.data.pop('url')
+
         stock_list = serializer.get_or_create(validated_data=request.data)
-        new_stock_list.send(sender=self.__class__, nsl=stock_list)
+        # скачивание и сохранение файла
+        ssl._create_default_https_context = ssl._create_unverified_context
+        urllib.request.urlretrieve(url, f'stock_list_{date.today()}_{request.data["company"].id}.xls')
+        wb = xlrd.open_workbook(f'stock_list_{date.today()}_{request.data["company"].id}.xls')
+        sheet = wb.sheet_by_index(0)
+        # проход по файлу
+        for rownum in range(1, sheet.nrows):
+            row = sheet.row_values(rownum)
+            # получение/ создание позиции
+            info = {'company': request.data["company"],
+                    'code': row[0],
+                    'english_name': row[1],
+                    'scientific_name': row[2],
+                    'size': row[3]}
+            item = ItemSerializer(info)
+            result = item.get_or_create(data=info)
+            # получение создание связки позиция/сток
+            data_stock_item = {'item': result,
+                               'stock_list': stock_list,
+                               'offer_price': row[4],
+                               'quantity_bag': row[5]/stock_list.bags_quantity,
+                               'limit': row[6]}
+            stock_item = StockListItemSerializer(data_stock_item)
+            result2 = stock_item.get_or_create(data=data_stock_item)
+
+
+
+        # new_stock_list.send(sender=self.__class__, nsl=stock_list)
         return JsonResponse({'status': f'added {serializer.data}'})
+
 
     def put(self, request, pk=None, *args, **kwargs):
         if not pk:

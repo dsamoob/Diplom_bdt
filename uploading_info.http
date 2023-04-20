@@ -32,7 +32,7 @@ Content-Type: application/json
   "box_weight": 13.4,
   "ship_from": 2,
   "transport_type": "Air",
-      "url": "sdfsdfdsf"
+  "url": "https://github.com/dsamoob/Diplom_bdt/blob/main/Singapore_stock.xls?raw=true"
 
 
 }
