@@ -45,7 +45,7 @@ Content-Type: application/json
 
 }
 
-###___Получение сток листа___
+###___Получение состава сток листа___
 GET http://127.0.0.1:8000/api/v1/getstock/1/
 Authorization: Token user2cnee
 Content-Type: application/json
@@ -56,14 +56,17 @@ Authorization: Token user1staff
 Content-Type: application/json
 
 
-###
-PUT http://127.0.0.1:8000/api/v1/stockcorrection/16/
-Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
+###___Заполнение сток листа ценами и названиями___
+PUT http://127.0.0.1:8000/api/v1/stockcorrection/2/
+Authorization: Token user1staff
 Content-Type: application/json
 
 {
-  "currency_rate":  79,
-  "status": "offered"
+  "currency_rate":  78,
+  "status": "offered",
+  "name": "Сингапур 2023-05-01",
+  "currency_type": "EUR",
+  "items": [{"id": 12}]
 }
 ### ___Uploading stock list shpr/cnee-shpr
 GET http://127.0.0.1:8000/api/v1/uploadstock
@@ -83,9 +86,12 @@ Content-Type: application/json
   "stock_type": 3,
   "bags_quantity": 4,
   "box_weight": 13.4,
+  "freight_rate": 9.5,
   "ship_from": 1,
   "transport_type": "Air",
   "url": "https://github.com/dsamoob/Diplom_bdt/blob/main/Singapore_stock.xls?raw=true"
+
+
 
 
 }

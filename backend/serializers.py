@@ -156,7 +156,6 @@ class CompanyDetailsUpdateSerializer(serializers.ModelSerializer):
 class StockListCreateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
-        print(instance)
         instance.orders_till_date = validated_data.get('orders_till_date', instance.orders_till_date)
         instance.shipment_date = validated_data.get('shipment_date', instance.shipment_date)
         instance.bags_quantity = validated_data.get('bags_quantity', instance.bags_quantity)
@@ -168,6 +167,7 @@ class StockListCreateSerializer(serializers.ModelSerializer):
         instance.ship_from = validated_data.get('ship_from', instance.ship_from)
         instance.currency_type = validated_data.get('currency_type', instance.currency_type)
         instance.transport_type = validated_data.get('transport_type', instance.transport_type)
+        instance.name = validated_data.get('name', "no name")
         instance.save()
         return instance
 
@@ -177,9 +177,6 @@ class StockListCreateSerializer(serializers.ModelSerializer):
         validated_data['stock_type'] = StockType.objects.filter(id=validated_data['stock_type']).first()
         obj, _ = StockList.objects.get_or_create(**validated_data)
         return obj
-
-
-
 
     class Meta:
         model = StockList

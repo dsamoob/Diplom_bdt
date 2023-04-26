@@ -196,8 +196,10 @@ class StockList(models.Model):
     currency_rate = models.DecimalField(max_digits=4, decimal_places=2, verbose_name='Курс доллара', default=1, blank=True)
     status = models.CharField(max_length=15, choices=STOCK_STATUS, default='uploaded')
     box_weight = models.DecimalField(max_digits=4, decimal_places=2, verbose_name='Вес одной коробки')
+    freight_rate = models.DecimalField(max_digits=7, decimal_places=2)
     ship_from = models.ForeignKey(ShipAddresses, on_delete=models.CASCADE)
     transport_type = models.CharField(max_length=15, choices=TRANSPORT_TYPE)
+    url = models.URLField()
 
 
 class Item(models.Model):
