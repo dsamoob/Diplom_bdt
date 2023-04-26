@@ -1,8 +1,9 @@
 from backend.models import User, CompanyDetails, State, \
-    City, ShipAddresses, FreightRates, StockType, StockList, Item, StockListItem
+    City, ShipAddresses, FreightRates, StockType, StockList, Item, StockListItem, Order, OrderedItems
 from rest_framework import serializers
 from datetime import datetime as dt
 from datetime import timedelta as td
+
 from django.core.exceptions import ValidationError
 
 
@@ -192,7 +193,7 @@ class StockListReadSerializer(serializers.ModelSerializer):
 
 
 
-class ItemSerializer(serializers.ModelSerializer):
+class ItemUploadingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Item
         fields = '__all__'
@@ -215,7 +216,94 @@ class StockListItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-###______________--
+class ItemsGetCneeSerializer(serializers.ModelSerializer):
+
+    code = serializers.SerializerMethodField('get_code')
+    english_name = serializers.SerializerMethodField('get_english_name')
+    scientific_name = serializers.SerializerMethodField('get_scientific_name')
+    russian_name = serializers.SerializerMethodField('get_russian_name')
+    size = serializers.SerializerMethodField('get_size')
+    sale_price = serializers.SerializerMethodField('get_sale_price')
+    quantity_in_bag = serializers.SerializerMethodField('get_quantity_in_bag')
+    quantity_in_box = serializers.SerializerMethodField('get_quantity_in_box')
+
+    def get_code(self, obj):
+
+        return f'{obj}'
+
+    def get_english_name(self, obj):
+        if not obj.english_name:
+            return f'{obj.item.english_name}'
+        return f'{obj.english_name}'
+        # return f'{obj.stock_list}'
+
+    def get_scientific_name(self, obj):
+        return f'{obj.item.scientific_name}'
+        # return f'{obj}'
+    def get_russian_name(self, obj):
+        return f'{obj.item.russian_name}'
+        # return f'{obj}'
+    def get_size(self, obj):
+        return f'{obj.item.size}'
+        # return f'{obj}'
+    def get_quantity_in_bag(self, obj):
+        return f'{obj.quantity_bag}'
+        # return f'{obj}'
+    def get_quantity_in_box(self, obj):
+        return f'{obj.stock_list.bags_quantity * obj.quantity_bag}'
+        # return f'{obj}'
+    def get_sale_price(self, obj):
+        return f'{obj.sale_price}'
+        # return f'{obj}'
+    class Meta:
+        model = StockListItem
+        # fields = '__all__'
+        fields = ['id', 'code', 'english_name', 'scientific_name', 'russian_name', 'size',
+                  'quantity_in_bag', 'quantity_in_box', 'sale_price']
+        order_by = 'id'
+
+# class StockItemsSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = StockList
+#         fields =
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    def get_or_create(self, data):
+        items = data.pop('items')
+        data['shipment_date'] = data['stock_list'].shipment_date
+        order, _ = Order.objects.get_or_create(**data)
+        return order, items
+
+    def update(self, instance, validated_data):
+        instance.user = validated_data.get('order', instance.user)
+        instance.ship_to = validated_data.get('ship_to', instance.ship_to)
+        instance.created_at = validated_data.get('created_at', instance.created_at)
+        instance.updated_at = validated_data.get('updated_at', dt.now())
+        instance.shipment_date = validated_data.get('shipment_date', instance.shipment_date)
+        instance.stock_list = validated_data.get('stock_list', instance.stock_list)
+        instance.status = validated_data.get('status', instance.status)
+        instance.save()
+        return instance
+
+    class Meta:
+        model = Order
+        fields = '__all__'
+
+
+class OrderedItemSerializer(serializers.ModelSerializer):
+    def create_or_update(self, data):
+        print(data['bags'])
+        obj, _ = OrderedItems.objects.update_or_create(bags=data['bags'],
+                                                       amount=data['amount'],
+                                                       item=data['item'],
+                                                       order=data['order'])
+
+    class Meta:
+        model = OrderedItems
+        fields = '__all__'
+
+
 class UserSerializer(serializers.ModelSerializer):
     user_companies = CompanyDetailsSerializer(read_only=True, many=True)
 

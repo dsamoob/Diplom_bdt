@@ -10,12 +10,7 @@ STOCK_TYPES = (
     ('Plants', 'растения')
 )
 
-STOCK_STATUS = (
-    ('uploaded', 'Загружено'),
-    ('offered', 'Выставлено'),
-    ('closed', 'Закрыто'),
-    ('finished', 'Завершено')
-)
+
 
 USER_TYPE_CHOICES = (
     ('shpr', 'Магазин'),
@@ -30,10 +25,7 @@ POL = (
     ('VKO', 'ВНК'),
 )
 
-SHIPMENT_STATUS = (
-    ('Confirmed', 'Принято'),
-    ('Shipped', 'Отправлено')
-)
+
 
 SHIP_TARGETS = (
     ('ship_to', 'куда'),
@@ -180,7 +172,20 @@ class StockType(models.Model):
         return self.name
 
 
+class FreightRates(models.Model):
+    POL = models.CharField(max_length=5, choices=POL, verbose_name='Аэропорт отправления')
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='POLs')
+    minimal_weight = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Минимальный вес')
+    price = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Цена за 1 кг')
+
+
 class StockList(models.Model):
+    STOCK_STATUS = (
+        ('uploaded', 'Загружено'),
+        ('offered', 'Выставлено'),
+        ('closed', 'Закрыто'),
+        ('finished', 'Завершено')
+    )
     name = models.CharField(max_length=100, blank=True)
     company = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE)
     orders_till_date = models.DateField(verbose_name='Дата окончания приема зказаов')
@@ -203,8 +208,6 @@ class Item(models.Model):
     russian_name = models.CharField(max_length=100, verbose_name='Русское название', blank=True)
     size = models.CharField(max_length=15, verbose_name='Размер', default='All size')
 
-
-
     def __str__(self):
         return f'{self.code} {self.english_name} {self.scientific_name} {self.russian_name} {self.size}'
 
@@ -217,6 +220,7 @@ class StockListItem(models.Model):
     quantity_bag = models.IntegerField(verbose_name='Кол-во в пакете')
     ordered = models.IntegerField(verbose_name='Заказано', default=0)
     limit = models.IntegerField(verbose_name='Кол-во в наличии', blank=True)
+    status = models.BooleanField(default=True)
     english_name = models.CharField(max_length=100, verbose_name='Местное название', blank=True)
     scientific_name = models.CharField(max_length=100, verbose_name='Научное название', blank=True)
     russian_name = models.CharField(max_length=100, verbose_name='Русское название', blank=True)
@@ -224,28 +228,38 @@ class StockListItem(models.Model):
 
 
 
-class FreightRates(models.Model):
-    POL = models.CharField(max_length=5, choices=POL, verbose_name='Аэропорт отправления')
-    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='POLs')
-    minimal_weight = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Минимальный вес')
-    price = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Цена за 1 кг')
-
-
 class Order(models.Model):
+    SHIPMENT_STATUS = (
+        ('Received', 'Получено'),
+        ('Confirmed', 'Принято'),
+        ('Updated', 'Обновлено'),
+        ('In process', 'В обработке'),
+        ('Shipped', 'Отправлено')
+    )
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    total_quantity = models.DecimalField(max_digits=8, decimal_places=0, verbose_name='Кол-во заказанных шт.', blank=True, default=0)
-    total_amoun = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Сумма заказа', blank=True, default=0)
-    date = models.DateTimeField(auto_now_add=True, verbose_name='Дата заказа')
-    box_quantity = models.DecimalField(max_digits=2, decimal_places=0, verbose_name='Кол-во заказанных коробок', blank=True, default=0)
-
-
-class Delivery(models.Model):
     ship_to = models.ForeignKey(ShipAddresses, on_delete=models.CASCADE)
-    shipment_status = models.CharField(max_length=20, choices=SHIPMENT_STATUS, default='Confirmed')
-    shipment_date = models.DateTimeField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    shipment_date = models.DateField(blank=True)
+    stock_list = models.ForeignKey(StockList, on_delete=models.CASCADE)
+    status = models.CharField(max_length=20, choices=SHIPMENT_STATUS, default='Received')
 
 
-class OrderDelivery(models.Model):
+class OrderedItems(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
-    delivery = models.ForeignKey(Delivery, on_delete=models.CASCADE)
+    item = models.ForeignKey(StockListItem, on_delete=models.CASCADE)
+    bags = models.IntegerField()
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+
+class FreightRatesSet(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE)
+    ship_to = models.ForeignKey(ShipAddresses, on_delete=models.CASCADE)
+    price = models.DecimalField(max_digits=6, decimal_places=2,)
+    minimal_weight = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+
+
 

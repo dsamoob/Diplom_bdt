@@ -1,5 +1,58 @@
-GET http://127.0.0.1:8000/api/v1/stockcorrection
-Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
+
+
+
+GET http://127.0.0.1:8000/api/v1/order/3/
+Authorization: Token user2cnee
+Content-Type: application/json
+
+
+###
+POST http://127.0.0.1:8000/api/v1/order/1/
+Authorization: Token user2cnee
+Content-Type: application/json
+
+
+{ "stock_list": 1,
+  "ship_to":2,
+  "items": [
+    {"id":  3,
+    "bags": 1},
+    {"id":  4,
+    "bags":  1},
+    {"id": 151,
+    "bags": 1},
+    {"id": 154,
+    "bags": 1}
+  ]
+}
+###___обновление заказа
+PUT http://127.0.0.1:8000/api/v1/order/3/
+Authorization: Token user1staff
+Content-Type: application/json
+
+{
+  "shipment_date":  "2023-05-01",
+  "status":  "confirmed"
+}
+###___изменение заказа заказчиком___
+PUT http://127.0.0.1:8000/api/v1/order/3/
+Authorization: Token user2cnee
+Content-Type: application/json
+
+{
+  "ship_to":  3,
+  "items": 12
+
+}
+
+###___Получение сток листа___
+GET http://127.0.0.1:8000/api/v1/getstock/1/
+Authorization: Token user2cnee
+Content-Type: application/json
+
+###
+GET http://127.0.0.1:8000/api/v1/stockcorrection?category=uploaded
+Authorization: Token user1staff
 Content-Type: application/json
 
 
@@ -14,7 +67,7 @@ Content-Type: application/json
 }
 ### ___Uploading stock list shpr/cnee-shpr
 GET http://127.0.0.1:8000/api/v1/uploadstock
-Authorization: Token user3shpr/cnee
+Authorization: Token user4shpr
 Content-Type: application/json
 
 ###
@@ -24,13 +77,13 @@ Authorization: Token user4shpr
 Content-Type: application/json
 
 {
-  "company": 5,
+  "company": 1,
   "orders_till_date" : "2023-04-23",
   "shipment_date": "2023-04-30",
   "stock_type": 3,
   "bags_quantity": 4,
   "box_weight": 13.4,
-  "ship_from": 2,
+  "ship_from": 1,
   "transport_type": "Air",
   "url": "https://github.com/dsamoob/Diplom_bdt/blob/main/Singapore_stock.xls?raw=true"
 
@@ -43,7 +96,7 @@ Authorization: Token user4shpr
 Content-Type: application/json
 
 {
-  "company": 5,
+  "company": 1,
   "stock_type": 1,
   "bags_quantity": 4,
   "box_weight": 14.4,
@@ -80,12 +133,12 @@ Content-Type: application/json
 
 ###
 POST http://127.0.0.1:8000/api/v1/user/details/shipto/
-Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Authorization: Token user4shpr
 Content-Type: application/json
 
 {
   "city": 2,
-  "company": 6,
+  "company": 1,
   "street": "pulyanкi",
   "bld": 313,
   "contact_person": "ivцan",
@@ -114,7 +167,7 @@ Content-Type: application/json
   }
 ###
 POST http://127.0.0.1:8000/api/v1/user/details/company
-Authorization: Token 14215596090f7653a9f8eea4b8ed6a3d5356e636
+Authorization: Token user2cnee
 Content-Type: application/json
 
 {
@@ -126,7 +179,7 @@ Content-Type: application/json
   }
 ###
 POST http://127.0.0.1:8000/api/v1/user/details/company
-Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Authorization: Token user4shpr
 Content-Type: application/json
 
 {
@@ -163,7 +216,7 @@ Content-Type: application/json
 
 ###___StockTypes___
 POST http://127.0.0.1:8000/api/v1/filldb/stocktypes/
-Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
+Authorization: Token user1staff
 Content-Type: application/json
 
 {
@@ -181,7 +234,7 @@ Content-Type: application/json
 
 ### ______Загрузка стоимостей фрахта в дб ______ и их проверка
 POST http://127.0.0.1:8000/api/v1/filldb/freight/
-Authorization: Token 1b2db410571b0379cb93601af73d390b50375770
+Authorization: Token user1staff
 Content-Type: application/json
 
 {
@@ -200,7 +253,7 @@ Content-Type: application/json
 
 ### _____Загрузка стран и городов в дб____ и их проверка
 POST http://127.0.0.1:8000/api/v1/filldb/state/
-Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
+Authorization: Token user1staff
 Content-Type: application/json
 
 {
