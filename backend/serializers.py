@@ -2,9 +2,15 @@ from backend.models import User, CompanyDetails, State, \
     City, ShipAddresses, FreightRates, StockType, StockList, Item, StockListItem, Order, OrderedItems
 from rest_framework import serializers
 from datetime import datetime as dt
+from datetime import date
 from datetime import timedelta as td
 
+from rest_framework.serializers import ValidationError as VE
+
+
 from django.core.exceptions import ValidationError
+
+
 
 
 class CitySerializer(serializers.ModelSerializer):
@@ -101,6 +107,11 @@ class ShipAddressesSerializer(serializers.ModelSerializer):
         fields = ['id', 'ship_target', 'contact_person', 'phone', 'city', 'street', 'bld', 'company']
 
 
+class CompanySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompanyDetails
+        fields = '__all__'
+
 class CompanyDetailsSerializer(serializers.ModelSerializer):
     state = serializers.SerializerMethodField('get_state')
     city = serializers.SerializerMethodField('get_city')
@@ -153,34 +164,7 @@ class CompanyDetailsUpdateSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class StockListCreateSerializer(serializers.ModelSerializer):
 
-    def update(self, instance, validated_data):
-        instance.orders_till_date = validated_data.get('orders_till_date', instance.orders_till_date)
-        instance.shipment_date = validated_data.get('shipment_date', instance.shipment_date)
-        instance.bags_quantity = validated_data.get('bags_quantity', instance.bags_quantity)
-        instance.currency_rate = validated_data.get('currency_rate', instance.currency_rate)
-        instance.status = validated_data.get('status', instance.status)
-        instance.box_weight = validated_data.get('box_weight', instance.box_weight)
-        instance.company = validated_data.get('company', instance.company)
-        instance.stock_type = validated_data.get('stock_type', instance.stock_type)
-        instance.ship_from = validated_data.get('ship_from', instance.ship_from)
-        instance.currency_type = validated_data.get('currency_type', instance.currency_type)
-        instance.transport_type = validated_data.get('transport_type', instance.transport_type)
-        instance.name = validated_data.get('name', "no name")
-        instance.save()
-        return instance
-
-    def get_or_create(self, validated_data):
-        validated_data['company'] = CompanyDetails.objects.filter(id=validated_data['company']).first()
-        validated_data['ship_from'] = ShipAddresses.objects.filter(id=validated_data['ship_from']).first()
-        validated_data['stock_type'] = StockType.objects.filter(id=validated_data['stock_type']).first()
-        obj, _ = StockList.objects.get_or_create(**validated_data)
-        return obj
-
-    class Meta:
-        model = StockList
-        fields = '__all__'
 
 class StockListReadSerializer(serializers.ModelSerializer):
 
@@ -304,7 +288,192 @@ class OrderedItemSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     user_companies = CompanyDetailsSerializer(read_only=True, many=True)
 
+
     class Meta:
         model = User
         fields = ('id', 'first_name', 'last_name', 'email', 'phone', 'user_companies', 'username', 'type')
         read_only_fields = ('id',)
+
+
+
+""" Блок сериализаторов для рбаоты со сток листами """
+class GetStockCneeSerializer(serializers.ModelSerializer):
+    """ Сериализатор для получения сток листов клиентами """
+    stock_type = serializers.SlugRelatedField('name', read_only=True)
+    company = serializers.SlugRelatedField('name', read_only=True)
+    class Meta:
+        model = StockList
+        exclude = ('freight_rate', 'url', 'ship_from')
+
+
+class GetStockShprSerizlier(serializers.ModelSerializer):
+    """ Сериализатор для получения сток листов поставщиками """
+    class Meta:
+        model = StockList
+        fields = '__all__'
+
+
+class GetStockStaffSerializator(serializers.ModelSerializer):
+    """ Сериализатор для получения сток листов работниками """
+    company = CompanySerializer(read_only=True)
+    ship_from = ShipToSerializer(read_only=True)
+    stock_type = serializers.SlugRelatedField('name', read_only=True)
+
+    class Meta:
+        model = StockList
+        fields = '__all__'
+
+
+class StockListCreateSerializer(serializers.ModelSerializer):
+    """ Сериализатор для создания и обновления сток листов """
+
+
+    def validate_company(self, value):
+        user = self.context["request"].user
+        if value.user != user:
+            raise VE(['not belongs to user'])
+        return value
+
+    def validate_ship_from(self, value):
+        user = self.context["request"].user
+        if value.company.user != user:
+            raise VE(['not belongs to user company'])
+        return value
+
+    def validate_orders_till_date(self, value):
+        if value < date.today():
+            raise VE(['incorrect, finishing orders must be later than today'])
+        return value
+
+    def validate_shipment_date(self, value):
+        if value < date.today() + td(days=7):
+            raise VE(['shipment date mustbe not earlier than 7 days from today'])
+        return value
+
+    def get_or_create(self, validated_data):
+        validated_data['company'] = CompanyDetails.objects.filter(id=validated_data['company']).first()
+        validated_data['ship_from'] = ShipAddresses.objects.filter(id=validated_data['ship_from']).first()
+        validated_data['stock_type'] = StockType.objects.filter(id=validated_data['stock_type']).first()
+        if validated_data['transport_type'] in ['Truck', 'Автомобиль']:
+            validated_data['freight_rate'] = 0.01
+        obj, _ = StockList.objects.get_or_create(**validated_data)
+        return obj
+
+    def update(self, instance, validated_date):
+        pass
+
+    class Meta:
+        model = StockList
+        fields = '__all__'
+
+
+class StockUpdateShprSerializer(serializers.ModelSerializer):
+    """ Сериализатор для обновления стока поставщиками """
+    def validate_company(self, value):
+        user = self.context["request"].user
+        if value.user != user:
+
+            raise VE(['not belongs to user'])
+        return value
+
+    def validate_ship_from(self, value):
+        user = self.context["request"].user
+        if not value.company.user != user:
+            raise VE(['not belongs to user company'])
+        return value
+
+    def validate_orders_till_date(self, value):
+        if value < date.today():
+            raise VE(['incorrect, finishing orders must be later than today'])
+        return value
+
+    def validate_shipment_date(self, value):
+        if value < date.today() + td(days=7):
+            raise VE(['shipment date mustbe not earlier than 7 days from today'])
+        return value
+
+    def update(self, instance, validated_data):
+        # serializers.raise_errors_on_nested_writes('updated', self, validated_data)
+        if validated_data.get('company'):
+            instance.company = CompanyDetails.objects.get(id=validated_data['company'])
+        if validated_data.get('ship_from'):
+            instance.ship_from = ShipAddresses.objects.get(id=validated_data['ship_from'])
+        instance.orders_till_date = validated_data.get('orders_till_date', instance.orders_till_date)
+        instance.shipment_date = validated_data.get('shipment_date', instance.shipment_date)
+        if validated_data.get('stock_type'):
+            instance.stock_type = StockType.objects.get(id=validated_data['stock_type'])
+        instance.freight_rate = validated_data.get('freight_rate', instance.freight_rate)
+        instance.transport_type = validated_data.get('transport_type', instance.transport_type)
+        instance.bags_quantity = validated_data.get('bags_quantity', instance.bags_quantity)
+        instance.box_weight = validated_data.get('box_weight', instance.box_weight)
+        instance.currency_type = validated_data.get('currency_type', instance.currency_type)
+        instance.status = 'updated'
+        instance.save()
+        return instance
+
+    class Meta:
+        model = StockList
+        fields = ['company', 'ship_from', 'orders_till_date',
+                  'shipment_date', 'stock_type', 'bags_quantity',
+                  'box_weight', 'freight_rate', 'transport_type',
+                  'currency_type']
+        extra_kwargs = {'company': {'required': False},
+                        'ship_from': {'required': False},
+                        'orders_till_date': {'required': False},
+                        'shipment_date': {'required': False},
+                        'stock_type': {'required': False},
+                        'bags_quantity': {'required': False},
+                        'box_weight': {'required': False},
+                        'freight_rate': {'required': False},
+                        'transport_type': {'required': False},
+                        'currency_type': {'required': False}
+                        }
+
+
+class StockUpdateStaffSerializer(serializers.ModelSerializer):
+    """ Сериализатор для обновления сток листа пользователем staff """
+    def validate_orders_till_date(self, value):
+        if value < date.today():
+            raise VE(['incorrect, finishing orders must be later than today'])
+        return value
+
+    def validate_shipment_date(self, value):
+        if value < date.today() + td(days=7):
+            raise VE(['shipment date mustbe not earlier than 7 days from today'])
+        return value
+
+    def update(self, instance, validated_data):
+        # serializers.raise_errors_on_nested_writes('updated', self, validated_data)
+
+        instance.orders_till_date = validated_data.get('orders_till_date', instance.orders_till_date)
+        instance.shipment_date = validated_data.get('shipment_date', instance.shipment_date)
+        if validated_data.get('stock_type'):
+            instance.stock_type = StockType.objects.get(id=validated_data['stock_type'])
+        instance.freight_rate = validated_data.get('freight_rate', instance.freight_rate)
+        instance.transport_type = validated_data.get('transport_type', instance.transport_type)
+        instance.bags_quantity = validated_data.get('bags_quantity', instance.bags_quantity)
+        instance.box_weight = validated_data.get('box_weight', instance.box_weight)
+        instance.currency_type = validated_data.get('currency_type', instance.currency_type)
+        instance.currency_rate = validated_data.get('currency_rate', instance.currency_type)
+        instance.status = validated_data.get('status', instance.status)
+        instance.name = validated_data.get('name', 'no_name')
+        instance.save()
+        return instance
+    class Meta:
+        model = StockList
+        fields = ['orders_till_date',
+                  'shipment_date', 'stock_type', 'bags_quantity',
+                  'box_weight', 'freight_rate', 'transport_type',
+                  'currency_type', 'currency_rate', 'status', 'name']
+        extra_kwargs = {'orders_till_date': {'required': False},
+                        'shipment_date': {'required': False},
+                        'stock_type': {'required': False},
+                        'bags_quantity': {'required': False},
+                        'box_weight': {'required': False},
+                        'freight_rate': {'required': False},
+                        'transport_type': {'required': False},
+                        'currency_type': {'required': False},
+                        'currency_rate': {'required': True},
+                        'status': {'required': False},
+                        'name': {'required': True}
+                        }

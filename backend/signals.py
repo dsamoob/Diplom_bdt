@@ -17,9 +17,9 @@ stock_list_update = Signal()
 def stock_list_update_signal(obj, request_data, **kwargs):
     user = User.objects.get(type='staff')
     msg = EmailMultiAlternatives(
-        f"новый сток лист от {obj.company.name}",
+        f"Сток обновился лист от {obj.company.name}",
 
-        *request_data.data,
+        f'{request_data}',
         # from:
         settings.EMAIL_HOST_USER,
         # to:

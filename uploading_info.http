@@ -6,11 +6,10 @@ Authorization: Token user2cnee
 Content-Type: application/json
 
 
-###
+###___Размещение заказа покупателем
 POST http://127.0.0.1:8000/api/v1/order/1/
 Authorization: Token user2cnee
 Content-Type: application/json
-
 
 { "stock_list": 1,
   "ship_to":2,
@@ -45,75 +44,87 @@ Content-Type: application/json
 
 }
 
-###___Получение состава сток листа___
-GET http://127.0.0.1:8000/api/v1/getstock/1/
+
+
+
+
+
+###______________________Stock/<pk>____________________________________________________________________________________
+###___Получение сток листов работником
+GET http://127.0.0.1:8000/api/v1/stock/8/
+Authorization: Token user1staff
+Content-Type: application/json
+###___Получение сток листов покупателем
+GET http://127.0.0.1:8000/api/v1/stock/2/
+Authorization: Token user2cnee
+Content-Type: application/json
+###___Получение сток листов поставщиком
+GET http://127.0.0.1:8000/api/v1/stock/8/
+Authorization: Token user3shpr
+Content-Type: application/json
+###___Получение сток листов поставщиком/покупателем
+GET http://127.0.0.1:8000/api/v1/stock/8/
+Authorization: Token user4shpr/cnee
+Content-Type: application/json
+###___Размещение сток листа поставщиком, поставщиком/покупателем
+POST http://127.0.0.1:8000/api/v1/stock/
+Authorization: Token user3shpr
+Content-Type: application/json
+
+{
+  "company": 3,
+  "orders_till_date" : "2023-04-24",
+  "shipment_date": "2023-06-07",
+  "stock_type": 1,
+  "bags_quantity": 1,
+  "box_weight": 13.4,
+  "freight_rate": 5.5,
+  "ship_from": 4,
+  "transport_type": "Air"
+
+}
+###___Изменение сток листа поставщиком или поставщиком/покупателем
+PUT http://127.0.0.1:8000/api/v1/stock/9/
+Authorization: Token user3shpr
+Content-Type: application/json
+
+{
+  "company": 3,
+  "orders_till_date" : "2023-04-29",
+  "shipment_date": "2023-05-08",
+  "stock_type": 1,
+  "bags_quantity": 1,
+  "box_weight": 13.4,
+  "freight_rate": 6846.57,
+  "ship_from": 1,
+  "transport_type": "Air",
+  "currency_type": "USD"
+
+}
+###___Изменение сток листа пользователем staff
+PUT http://127.0.0.1:8000/api/v1/stock/9/
+Authorization: Token user1staff
+Content-Type: application/json
+
+{
+  "orders_till_date" : "2023-04-29",
+  "shipment_date": "2023-05-08",
+  "status": "updated",
+  "name": "Сингапур 2023-05-08",
+  "currency_rate": 83.5
+}
+###___Проверка метода пут для пользователя cnee
+PUT http://127.0.0.1:8000/api/v1/stock/9/
 Authorization: Token user2cnee
 Content-Type: application/json
 
-###
-GET http://127.0.0.1:8000/api/v1/stockcorrection?category=uploaded
-Authorization: Token user1staff
+###___Удаление сток листа
+DELETE http://127.0.0.1:8000/api/v1/stock/9/
+Authorization: Token user3shpr
 Content-Type: application/json
+###____________________________Stock/<PK> finished_____________________________________________________________________
 
-
-###___Заполнение сток листа ценами и названиями___
-PUT http://127.0.0.1:8000/api/v1/stockcorrection/2/
-Authorization: Token user1staff
-Content-Type: application/json
-
-{
-  "currency_rate":  78,
-  "status": "offered",
-  "name": "Сингапур 2023-05-01",
-  "currency_type": "EUR",
-  "items": [{"id": 12}]
-}
-### ___Uploading stock list shpr/cnee-shpr
-GET http://127.0.0.1:8000/api/v1/uploadstock
-Authorization: Token user4shpr
-Content-Type: application/json
-
-###
-
-POST http://127.0.0.1:8000/api/v1/uploadstock/
-Authorization: Token user4shpr
-Content-Type: application/json
-
-{
-  "company": 1,
-  "orders_till_date" : "2023-04-23",
-  "shipment_date": "2023-04-30",
-  "stock_type": 3,
-  "bags_quantity": 4,
-  "box_weight": 13.4,
-  "freight_rate": 9.5,
-  "ship_from": 1,
-  "transport_type": "Air",
-  "url": "https://github.com/dsamoob/Diplom_bdt/blob/main/Singapore_stock.xls?raw=true"
-
-
-
-
-}
-
-###
-PUT http://127.0.0.1:8000/api/v1/uploadstock/22/
-Authorization: Token user4shpr
-Content-Type: application/json
-
-{
-  "company": 1,
-  "stock_type": 1,
-  "bags_quantity": 4,
-  "box_weight": 14.4,
-  "ship_from": 2,
-  "transport_type": "Air",
-  "currency_type": "USD",
-  "new": "new"
-}
-
-
-### ___ShipperAddresses___
+###___ShipperAddresses___
 PUT http://127.0.0.1:8000/api/v1/user/details/shipto/1/
 Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
 Content-Type: application/json

@@ -33,17 +33,7 @@ SHIP_TARGETS = (
     ('ship_to_from', 'куда/откуда')
 )
 
-TRANSPORT_TYPE = (
-    ('Air', 'Самолет'),
-    ('Truck', 'Автомобиль'),
-)
 
-CURRENCY_TYPE = (
-    ('USD', 'Доллар США'),
-    ('EUR', 'Евро'),
-    ('CNY', 'Китайский Юань'),
-    ('RUB', 'Российский Рубль')
-)
 
 class UserManager(BaseUserManager):
     """
@@ -183,8 +173,21 @@ class StockList(models.Model):
     STOCK_STATUS = (
         ('uploaded', 'Загружено'),
         ('offered', 'Выставлено'),
+        ('updated', 'Обновлено'),
         ('closed', 'Закрыто'),
         ('finished', 'Завершено')
+    )
+
+    TRANSPORT_TYPE = (
+        ('Air', 'Самолет'),
+        ('Truck', 'Автомобиль'),
+    )
+
+    CURRENCY_TYPE = (
+        ('USD', 'Доллар США'),
+        ('EUR', 'Евро'),
+        ('CNY', 'Китайский Юань'),
+        ('RUB', 'Российский Рубль')
     )
     name = models.CharField(max_length=100, blank=True)
     company = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE)
@@ -199,7 +202,7 @@ class StockList(models.Model):
     freight_rate = models.DecimalField(max_digits=7, decimal_places=2)
     ship_from = models.ForeignKey(ShipAddresses, on_delete=models.CASCADE)
     transport_type = models.CharField(max_length=15, choices=TRANSPORT_TYPE)
-    url = models.URLField()
+
 
 
 class Item(models.Model):

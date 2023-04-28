@@ -1,6 +1,6 @@
 from django.contrib.auth.password_validation import validate_password
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.pagination import LimitOffsetPagination
+
+from django.db.models import Q
 import xlrd
 from rest_condition import And, Or, Not
 from datetime import date
@@ -15,7 +15,9 @@ from backend.serializers import StateSerializer, UserSerializer, CitySerializer,
     StateDescriptionSerializer, FreightRatesSerializer, CityFreightSerializer, StockTypeSerializer, \
     CompanyDetailsSerializer, ShipToSerializer, CompanyDetailsUpdateSerializer, ShipAddressesUpdateSerializer, \
     ShipAddressesSerializer, ItemUploadingSerializer, StockListCreateSerializer, StockListReadSerializer, \
-    StockListItemSerializer, ItemsGetCneeSerializer, OrderSerializer, OrderedItemSerializer
+    StockListItemSerializer, ItemsGetCneeSerializer, OrderSerializer, OrderedItemSerializer, GetStockCneeSerializer, \
+    GetStockShprSerizlier, GetStockStaffSerializator,StockUpdateShprSerializer, StockUpdateStaffSerializer
+
 from backend.signals import new_user_registered, new_stock_list, stock_list_update
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
@@ -129,44 +131,7 @@ class GetStockItems(APIView):
             return Response(serializer.data)
 
 
-class StockCorrectionStaff(APIView):
-    permission_classes = (IsStaff,)
-
-    # filter_backends = [DjangoFilterBackend]
-    # filterset_fields = ['category']
-
-    def get(self, request, pk=None, *args, **kwargs):
-
-        obj = StockList.objects.all().exclude(status='finished')
-        if pk:
-            try:
-                obj = StockList.objects.get(id=pk)
-                serializer = StockListReadSerializer(obj)
-                return Response(serializer.data)
-            except:
-                return JsonResponse({'error': 'pk not found'})
-        serializer = StockListReadSerializer(obj, many=True)
-        return Response(serializer.data)
-
-    def put(self, request, pk=None, *args, **kwargs):
-        if not pk:
-            return JsonResponse({'error': 'No pk'})
-
-        instance = StockList.objects.filter(id=pk).first()
-        if not instance:
-            return JsonResponse({'error': 'incorrect_data'})
-
-        serializer = StockListCreateSerializer(data=request.data, instance=instance, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        items = request.data.get('items')
-        if not items:
-            return JsonResponse({'status': f'pk {pk} updated'})
-        for item in items:
-            pass
-
-
-class StockUploading(APIView):
+class StockItemsUpload(APIView):
     permission_classes = (IsShprorCnShpr,)
 
     def get(self, request, pk=None, *args, **kwargs):
@@ -187,10 +152,11 @@ class StockUploading(APIView):
     def post(self, request, *args, **kwargs):
         stock_list = StockListCreateSerializer(data=request.data)
         stock_list.is_valid(raise_exception=True)
+        # проверка компании и адреса отправления
         if not ShipAddresses.objects.select_related('company').filter(id=stock_list.data['ship_from'],
                                                                       company_id=stock_list.data['company'],
                                                                       company__user=request.user).first():
-            return JsonResponse({'error': 1})
+            return JsonResponse({'error': 'incorrect company / ship_from address'})
         stock = stock_list.get_or_create(validated_data=request.data)
         ssl._create_default_https_context = ssl._create_unverified_context
         urllib.request.urlretrieve(stock.url, f'stock_list_{date.today()}_{stock.company.id}.xls')
@@ -226,6 +192,124 @@ class StockUploading(APIView):
         if not check:
             return JsonResponse({'error': 'not belongs to u'})
         return JsonResponse({'status': 'finished'})
+
+
+class Stock(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, pk=None, *args, **kwargs):
+        # получение стоков покупателем: только активные стоки
+        if request.user.type == 'cnee':
+            obj = StockList.objects.filter(status='offered').all()
+            if pk:
+                obj = StockList.objects.filter(status='offered', id=pk)
+                if not obj:
+                    return JsonResponse({'incorrect id': f'{pk}'})
+            # используется сериализатор для покупателей
+            serializer = GetStockCneeSerializer(obj, many=True)
+            return Response(serializer.data)
+        # получение стоков поставщиком - только стоки принадлежащие поставщику
+        elif request.user.type == 'shpr':
+            obj = StockList.objects.select_related('company').filter(company__user=request.user)
+            if pk:
+                obj = StockList.objects.select_related('company').filter(company__user=request.user, id=pk)
+                if not obj:
+                    return JsonResponse({'incorrect id': f'{pk}'})
+            # используется сериализатор для поставщиков
+            serializer = GetStockShprSerizlier(obj, many=True)
+            return Response(serializer.data)
+        # получение стоков пользователем поставщик/покупатель, отбираются стоки активные и принадлежащие поставщику
+        elif request.user.type == 'shpr/cnee':
+            # происходит отбор всех предложенных стоков и стоков принадлежащих поставщику
+            obj = StockList.objects.select_related('company').filter(Q(company__user=request.user) | Q(status='offered'))
+            if pk:
+                # если пк = компания пользователя - выгрузка происходит по сериализатору поставщика
+                obj = StockList.objects.select_related('company').filter(company__user=request.user, id=pk)
+                if obj:
+                    serializer = GetStockShprSerizlier(obj, many=True)
+                    return Response(serializer.data)
+                # если пк - не компания поставщика, но активный сток выгрузка происходит как покупателю
+                obj = StockList.objects.select_related('company').filter(id=pk, status='offered')
+                if obj:
+                    return Response(GetStockCneeSerializer(obj, many=True).data)
+                return JsonResponse({'incorrect id': f'{pk}'})
+            # все стоки выгружаются как покупателю
+            serializer = GetStockCneeSerializer(obj, many=True)
+            return Response(serializer.data)
+        # получение сток листов работником
+        elif request.user.type == 'staff':
+            obj = StockList.objects.all()
+            if pk:
+                obj = StockList.objects.filter(id=pk)
+            # более развернутый сериализатор
+            serializer = GetStockStaffSerializator(obj, many=True)
+            return Response(serializer.data)
+
+    def post(self, request, *args, **kwargs):
+        # размещать стоки могут только shpr и shpr/cnee
+        if request.user.type not in ['shpr', 'shpr/cnee']:
+            return JsonResponse({'error': 'incorrect method'})
+        stock_list = StockListCreateSerializer(data=request.data, context={'request': request})
+        # проверка компании и адреса отправления
+        stock_list.is_valid(raise_exception=True)
+
+        stock = stock_list.get_or_create(validated_data=request.data)
+        # уведомление пользователя staff об новом сток листе
+        new_stock_list.send(sender=self.__class__, nsl=stock)
+        return Response({'status': 'successful',
+                         'stock_id': f'{stock.id}'})
+
+    def put(self, request, pk=None, *args, **kwargs):
+        if not pk:
+            return JsonResponse({'error': 'No pk'})
+        # обновление сток листа поставщиками.
+        if request.user.type in ['shpr', 'shpr/cnee']:
+            instance = StockList.objects.select_related('company', 'stock_type').filter(id=pk, company__user=request.user).first()
+            if not instance:
+                return JsonResponse({'incorrect id': f'{pk}'})
+            stock = StockUpdateShprSerializer(context={"request": request}, data=request.data)
+            stock.is_valid(raise_exception=True)
+            stock = stock.update(instance=instance, validated_data=request.data,)
+            # отправка уведомления staff об изменениях
+            stock_list_update.send(sender=self.__class__, obj=stock, request_data=request.data)
+            return JsonResponse({'status': ' successful',
+                                 'stock_id': f'{stock.id} updated'})
+        # обновление сток листа пользователем staff
+        elif request.user.type == 'staff':
+            instance = StockList.objects.filter(id=pk).first()
+            if not instance:
+                return JsonResponse({'incorrect id': f'{pk}'})
+            stock = StockUpdateStaffSerializer(data=request.data)
+            stock.is_valid(raise_exception=True)
+            stock = stock.update(instance=instance, validated_data=request.data)
+            return JsonResponse({'status': ' successful',
+                                 'stock_id': f'{stock.id} updated'})
+        return JsonResponse({'Put method': 'not allowed'})
+
+    def delete(self, request, pk=None, *args, **kwargs):
+        # Доступно только staff и поставщикам
+        if not pk:
+            return JsonResponse({'error': 'No pk'})
+        # удаление стока - изменение его статуса на closed
+        elif request.user.type in ['shpr', 'shpr/cnee']:
+            # проверка принадлежности стока поставщику
+            obj = StockList.objects.select_related('company').filter(id=pk, company__user=request.user).first()
+            if not obj:
+                return JsonResponse({'incorrect id': f'{pk}'})
+            obj.status = 'closed'
+            obj.save()
+            return JsonResponse({'status': ' successful',
+                                 'stock_id': f'{obj.id} deleted'})
+        elif request.user.type == 'staff':
+            obj = StockList.objects.select_related('company').filter(id=pk).first()
+            if not obj:
+                return JsonResponse({'incorrect id': f'{pk}'})
+            obj.status = 'closed'
+            obj.save()
+            return JsonResponse({'status': ' successful',
+                                 'stock_id': f'{obj.id} deleted'})
+
+        return JsonResponse({'Put method': 'not allowed'})
 
 
 class UserShipTo(APIView):
@@ -438,7 +522,8 @@ class SetFreightRates(APIView):
         return JsonResponse({'stat': 'ok'})
 
     """ 
-    Получение информации по стоимостям фрахта для всех городов по названию страны или для определнного города по его названию
+    Получение информации по стоимостям фрахта для всех городов по названию страны
+     или для определнного города по его названию
     """
 
     def get(self, request, pk=None, *args, **kwargs):
