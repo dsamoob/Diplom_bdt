@@ -132,66 +132,76 @@ class GetStockItems(APIView):
 
 
 class StockItemsUpload(APIView):
-    permission_classes = (IsShprorCnShpr,)
-
-    def get(self, request, pk=None, *args, **kwargs):
-        company_list = [i.id for i in CompanyDetails.objects.filter(user=request.user.id).all()]
-        if pk:
-            try:
-                company = StockList.objects.filter(id=pk, ).first()
-                if company.company.id in company_list:
-                    return Response(StockListReadSerializer(company).data)
-                else:
-                    return JsonResponse({'error': f'pk {pk} belongs to another user'})
-            except:
-                return JsonResponse({'error': f'pk {pk} belongs to another user'})
-        serializers = StockListReadSerializer(
-            StockList.objects.filter(company__in=company_list, ).select_related('ship_from'), many=True)
-        return Response(serializers.data)
-
-    def post(self, request, *args, **kwargs):
-        stock_list = StockListCreateSerializer(data=request.data)
-        stock_list.is_valid(raise_exception=True)
-        # проверка компании и адреса отправления
-        if not ShipAddresses.objects.select_related('company').filter(id=stock_list.data['ship_from'],
-                                                                      company_id=stock_list.data['company'],
-                                                                      company__user=request.user).first():
-            return JsonResponse({'error': 'incorrect company / ship_from address'})
-        stock = stock_list.get_or_create(validated_data=request.data)
-        ssl._create_default_https_context = ssl._create_unverified_context
-        urllib.request.urlretrieve(stock.url, f'stock_list_{date.today()}_{stock.company.id}.xls')
-        wb = xlrd.open_workbook(f'stock_list_{date.today()}_{stock.company.id}.xls')
-        sheet = wb.sheet_by_index(0)
-        # проход по файлу
-        for rownum in range(1, sheet.nrows):
-            row = sheet.row_values(rownum)
-            # получение/ создание позиции
-            info = {'company': stock.company,
-                    'code': row[0],
-                    'english_name': row[1],
-                    'scientific_name': row[2],
-                    'size': row[3]}
-            item = ItemUploadingSerializer(info)
-            result = item.get_or_create(data=info)
-            # получение создание связки позиция/сток
-            data_stock_item = {'item': result,
-                               'stock_list': stock,
-                               'offer_price': row[4],
-                               'quantity_bag': row[5] / stock.bags_quantity,
-                               'limit': row[6]}
-            stock_item = StockListItemSerializer(data_stock_item)
-            result2 = stock_item.get_or_create(data=data_stock_item)
-        # отправка сообщения staff о добалвении сток листа с позициями
-        new_stock_list.send(sender=self.__class__, nsl=stock)
-        return JsonResponse({'status': f'added {stock}'})
-
-    def put(self, request, pk=None, *args, **kwargs):
+    permission_classes = (IsAuthenticated, )
+    def post(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
-        check = StockList.objects.select_related('company').filter(id=pk, company__user=request.user.id).first()
-        if not check:
-            return JsonResponse({'error': 'not belongs to u'})
-        return JsonResponse({'status': 'finished'})
+        # проверка url
+        url = request.data.get('url')
+        if url:
+            validate_url = URLValidator()
+            try:
+                validate_url(url)
+            except ValidationError as e:
+                return JsonResponse({'Status': False, 'Error': str(e)})
+        else:
+            return JsonResponse({'error': 'nourl'})
+
+        # для загрузки позиций из сток поставщиком
+        if request.user.type in ['shpr', 'shpr/cnee']:
+            # проверка принадлежности сток листа и его актуальности
+            stock_obj = StockList.objects.select_related('company').filter(id=pk, company__user=request.user, status='uploaded').first()
+            if not stock_obj:
+                return JsonResponse({'error': f'stock with id {pk} already closed or not belongs to user'})
+            # проверка ранее загруженных позиций, если есть хоть одна позиция -
+            if StockListItem.objects.filter(stock_list=pk).first():
+                return JsonResponse({'error': 'items for this stock list already uploaded'})
+            ssl._create_default_https_context = ssl._create_unverified_context
+            urllib.request.urlretrieve(url, f'stock_list_{date.today()}_{stock_obj.company.id}.xls')
+            wb = xlrd.open_workbook(f'stock_list_{date.today()}_{stock_obj.company.id}.xls')
+            sheet = wb.sheet_by_index(0)
+            # проход по файлу
+            for rownum in range(1, sheet.nrows):
+                row = sheet.row_values(rownum)
+                # получение/ создание позиции
+                info = {'company': stock_obj.company,
+                        'code': row[0],
+                        'english_name': row[1],
+                        'scientific_name': row[2],
+                        'size': row[3]}
+                item = ItemUploadingSerializer(info)
+                result = item.get_or_create(data=info)
+                # получение создание связки позиция/сток
+                data_stock_item = {'item': result,
+                                   'stock_list': stock_obj,
+                                   'offer_price': row[4],
+                                   'quantity_bag': row[5] / stock_obj.bags_quantity,
+                                   'limit': row[6]}
+                stock_item = StockListItemSerializer(data_stock_item)
+                result2 = stock_item.get_or_create(data=data_stock_item)
+            # отправка сообщения staff о добалвении сток листа с позициями
+            new_stock_list.send(sender=self.__class__, nsl=stock_obj)
+            return JsonResponse({'status': f'added {stock_obj}'})
+
+        # загрузка цен и перевода для staff
+        elif request.user.type == 'staff':
+            stock_obj = StockList.objects.filter(id=pk, status='uploaded').first()
+            if not stock_obj:
+                return JsonResponse({'error': 'no this stock'})
+            ssl._create_default_https_context = ssl._create_unverified_context
+            urllib.request.urlretrieve(url, f'stock_list_prices_{date.today()}_{stock_obj.company.id}.xls')
+            wb = xlrd.open_workbook(f'stock_list_prices_{date.today()}_{stock_obj.company.id}.xls')
+            sheet = wb.sheet_by_index(0)
+            for rownum in range(1, sheet.nrows):
+                row = sheet.row_values(rownum)
+                print(row)
+            return JsonResponse({'ok': 'ok'})
+
+
+        return JsonResponse({'error': 'no rights'})
+
+
+
 
 
 class Stock(APIView):

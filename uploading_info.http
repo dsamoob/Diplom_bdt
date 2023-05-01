@@ -43,11 +43,22 @@ Content-Type: application/json
   "items": 12
 
 }
+###______________________Stock/upload/<pk>_____________________________________________________________________________
+POST http://127.0.0.1:8000/api/v1/stock/upload/13/
+Authorization: Token user3shpr
+Content-Type: application/json
 
+{
+"url": "https://github.com/dsamoob/Diplom_bdt/blob/main/Singapore_stock.xls?raw=true"
+}
+###
+POST http://127.0.0.1:8000/api/v1/stock/upload/13/
+Authorization: Token user1staff
+Content-Type: application/json
 
-
-
-
+{
+"url": "https://github.com/dsamoob/Diplom_bdt/blob/main/Singapore_Stock_sale_prices.xls?raw=true"
+}
 
 ###______________________Stock/<pk>____________________________________________________________________________________
 ###___Получение сток листов работником
@@ -56,7 +67,7 @@ Authorization: Token user1staff
 Content-Type: application/json
 ###___Получение сток листов покупателем
 GET http://127.0.0.1:8000/api/v1/stock/2/
-Authorization: Token user2cnee
+Authorization: Token
 Content-Type: application/json
 ###___Получение сток листов поставщиком
 GET http://127.0.0.1:8000/api/v1/stock/8/
@@ -73,7 +84,7 @@ Content-Type: application/json
 
 {
   "company": 3,
-  "orders_till_date" : "2023-04-24",
+  "orders_till_date" : "2023-05-07",
   "shipment_date": "2023-06-07",
   "stock_type": 1,
   "bags_quantity": 1,
@@ -90,7 +101,7 @@ Content-Type: application/json
 
 {
   "company": 3,
-  "orders_till_date" : "2023-04-29",
+  "orders_till_date" : "2023-05-07",
   "shipment_date": "2023-05-08",
   "stock_type": 1,
   "bags_quantity": 1,

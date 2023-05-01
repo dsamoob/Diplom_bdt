@@ -172,29 +172,17 @@ class StockListReadSerializer(serializers.ModelSerializer):
         model = StockList
         fields = '__all__'
 
+class UserSerializer(serializers.ModelSerializer):
+    user_companies = CompanyDetailsSerializer(read_only=True, many=True)
 
 
-class ItemUploadingSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Item
-        fields = '__all__'
+        model = User
+        fields = ('id', 'first_name', 'last_name', 'email', 'phone', 'user_companies', 'username', 'type')
+        read_only_fields = ('id',)
 
-    def get_or_create(self, data):
-        obj, _ = Item.objects.get_or_create(**data)
-        return obj
 
-class StockListItemSerializer(serializers.ModelSerializer):
-
-    def get_or_create(self, data):
-        limit = data.get('limit', False)
-        if limit == '':
-            data['limit'] = 0
-
-        obj, _ = StockListItem.objects.get_or_create(**data)
-        return obj
-    class Meta:
-        model = StockListItem
-        fields = '__all__'
+"""_______________________Блок сериализаторов для работы с заказами_______________________________-"""
 
 
 class ItemsGetCneeSerializer(serializers.ModelSerializer):
@@ -209,7 +197,6 @@ class ItemsGetCneeSerializer(serializers.ModelSerializer):
     quantity_in_box = serializers.SerializerMethodField('get_quantity_in_box')
 
     def get_code(self, obj):
-
         return f'{obj}'
 
     def get_english_name(self, obj):
@@ -242,11 +229,6 @@ class ItemsGetCneeSerializer(serializers.ModelSerializer):
         fields = ['id', 'code', 'english_name', 'scientific_name', 'russian_name', 'size',
                   'quantity_in_bag', 'quantity_in_box', 'sale_price']
         order_by = 'id'
-
-# class StockItemsSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = StockList
-#         fields =
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -285,18 +267,9 @@ class OrderedItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class UserSerializer(serializers.ModelSerializer):
-    user_companies = CompanyDetailsSerializer(read_only=True, many=True)
+"""______________________Блок сериализаторов для рбаоты со сток листами_____________________________________-"""
 
 
-    class Meta:
-        model = User
-        fields = ('id', 'first_name', 'last_name', 'email', 'phone', 'user_companies', 'username', 'type')
-        read_only_fields = ('id',)
-
-
-
-""" Блок сериализаторов для рбаоты со сток листами """
 class GetStockCneeSerializer(serializers.ModelSerializer):
     """ Сериализатор для получения сток листов клиентами """
     stock_type = serializers.SlugRelatedField('name', read_only=True)
@@ -477,3 +450,31 @@ class StockUpdateStaffSerializer(serializers.ModelSerializer):
                         'status': {'required': False},
                         'name': {'required': True}
                         }
+
+
+"""___________________Блок сериализаторов для работы с загрузкой позиций сток листа______________________"""
+
+
+class ItemUploadingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Item
+        fields = '__all__'
+
+    def get_or_create(self, data):
+
+        obj, _ = Item.objects.get_or_create(**data)
+        return obj
+
+
+class StockListItemSerializer(serializers.ModelSerializer):
+    def get_or_create(self, data):
+        limit = data.get('limit', False)
+        if limit == '':
+            data['limit'] = 0
+        data['status'] = False
+        obj, _ = StockListItem.objects.get_or_create(**data)
+        return obj
+
+    class Meta:
+        model = StockListItem
+        fields = '__all__'

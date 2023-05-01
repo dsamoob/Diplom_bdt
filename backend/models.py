@@ -233,6 +233,7 @@ class StockListItem(models.Model):
 
 
 
+
 class Order(models.Model):
     SHIPMENT_STATUS = (
         ('Received', 'Получено'),
