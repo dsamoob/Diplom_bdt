@@ -4,7 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 
 from django.db.models import Q
 import xlrd
-from rest_condition import And, Or, Not
+from rest_condition import And, Or
 from decimal import Decimal
 from datetime import date
 import urllib.request
@@ -12,14 +12,13 @@ from backend.permissions import IsStaff, IsCneeShpr, IsAuthenticated, IsShprorCn
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from django.http import JsonResponse
-from backend.models import User, State, ConfirmEmailToken, City, FreightRates, StockType, CompanyDetails, ShipAddresses, \
-    StockList, StockListItem, Order, OrderedItems, Item
-from backend.serializers import StateSerializer, UserSerializer, CitySerializer, \
-    StateDescriptionSerializer, FreightRatesSerializer, CityFreightSerializer, StockTypeSerializer, \
+from backend.models import User, State, ConfirmEmailToken, City, FreightRates, StockType, CompanyDetails,\
+    ShipAddresses, StockList, StockListItem, Order, OrderedItems, Item
+from backend.serializers import StateSerializer, UserSerializer, CityFreightSerializer, StockTypeSerializer, \
     CompanyDetailsSerializer, ShipToSerializer, CompanyDetailsUpdateSerializer, ShipAddressesUpdateSerializer, \
-    ShipAddressesSerializer, ItemUploadingSerializer, StockListCreateSerializer, StockListReadSerializer, \
+    ShipAddressesSerializer, ItemUploadingSerializer, StockListCreateSerializer, \
     StockListItemSerializer, OrderSerializer, OrderedItemSerializer, GetStockCneeSerializer, \
-    GetStockShprSerizlier, GetStockStaffSerializator,StockUpdateShprSerializer, StockUpdateStaffSerializer,\
+    GetStockShprSerizlier, GetStockStaffSerializator, StockUpdateShprSerializer, StockUpdateStaffSerializer,\
     GetStockItemsSerializer
 
 from backend.signals import new_user_registered, new_stock_list, stock_list_update
@@ -30,47 +29,146 @@ from django.core.exceptions import ValidationError
 import ssl
 
 
-class GetStockItems(APIView):
-    permission_classes = (IsAuthenticated,)
+class Orders(APIView):
+    permission_classes = [Or(And(IsCneeShpr, ), And(IsAuthenticated, IsStaff), )]
 
     def get(self, request, pk=None, *args, **kwargs):
+        if pk:
+            order = Order.objects.filter(id=pk, user=request.user.id).first()
+            if not order:
+                return JsonResponse({'error': f'order with id {pk} not found'})
+            serializer = OrderSerializer(order)
+            return Response(serializer.data)
+
+    def post(self, request, *args, **kwargs):
+        # проверка на актуальность сток листа
+        if not StockList.objects.filter(id=request.data['stock_list'], status='offered'):
+            return JsonResponse({'stocklist': 'not found'})
+        # проверка входящего джсона
+        if not {'items', 'ship_to', 'stock_list'}.issubset(request.data) or not isinstance(request.data['items'], list):
+            return JsonResponse({'error': 'incorrect fields'})
+        request.data['stock_list'] = StockList.objects.get(id=request.data['stock_list'])
+        request.data['user'] = request.user
+        # проверка адреса получателя на принадлежность пользователю
+        ship_to = ShipAddresses.objects.select_related('company').filter(id=request.data['ship_to'],
+                                                                         company__user=request.user).first()
+
+        if not ship_to:
+            return JsonResponse({'error': f'incorrect ship_to id'})
+        # проверка количества заказанного
+        if sum([i['bags'] for i in request.data['items']]) % request.data['stock_list'].bags_quantity != 0:
+            return JsonResponse({'error': 'incorrect bags quantity'})
+        request.data['ship_to'] = ship_to
+        # проверка наличия позиций и их количества в наличии
+        for item in request.data['items']:
+            item_obj = StockListItem.objects.filter(id=item['id'], status=True,
+                                                    stock_list=request.data['stock_list'].id).first()
+            if not item_obj:
+                return JsonResponse({'error': f'incorrect item id: {item["id"]}'})
+            if (item_obj.quantity_bag * item['bags']) + item_obj.ordered > item_obj.limit and item_obj.limit != 0:
+                return JsonResponse({'status': f'not enough on stock for item  with id: {item["id"]}'})
+        # создание самого заказа
+        serializer = OrderSerializer(request.data)
+        order, items = serializer.get_or_create(data=request.data)
+        # создание позиций заказа
+        for item in items:
+            item_obj = StockListItem.objects.filter(id=item['id'], status=True).first()
+            if not item_obj:
+                return JsonResponse({'status': f'not available item {item["id"]}'})
+            item_obj.ordered = item_obj.ordered + (item_obj.quantity_bag * item['bags'])
+            item_obj.save()
+            data = {'bags': item['bags'],
+                    'amount': item_obj.sale_price * (item['bags'] * item_obj.quantity_bag),
+                    'item': item_obj,
+                    'order': order}
+            serializer = OrderedItemSerializer(data)
+            serializer.create_or_update(data=data)
+        return JsonResponse({'status': 'successful',
+                             'order_id': order.id})
+
+    def put(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
+        # пользователь группы staff может только менять статус заказа и дату доставки
+        if request.user.type == 'staff':
+            if not {'shipment_date', 'status'}.issubset(request.data):
+                return JsonResponse({'error': 'incorrect data'})
+            try:
+                instance = Order.objects.get(id=pk)
+            except:
+                return JsonResponse({'error': f'incorrect order id: {pk}'})
+            serializer = OrderSerializer(request.data)
+            serializer.update(validated_data=request.data, instance=instance)
+
+        # пользователь (cnee или shpr/cnee) может изменять только ship-to,
+        # статус заказа меняется на updated автоматически
+        instance = Order.objects.filter(id=pk, user=request.user).first()
+        if not instance:
+            return JsonResponse({'error': 'incorrect pk or order not belongs to u'})
+        if not {'ship_to'}.issubset(request.data):
+            return JsonResponse({'error': 'incorrect data'})
+        request.data['ship_to'] = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id,
+                                                                                         id=request.data[
+                                                                                             'ship_to']).first()
+        if not request.data['ship_to']:
+            return JsonResponse({'error': f'incorrect ship_to id'})
+        request.data['status'] = 'Updated'
+        serializer = OrderSerializer(request.data)
+        serializer.update(validated_data=request.data, instance=instance)
+        return JsonResponse({'ok': 'finished'})
+
+
+class GetStockItems(APIView):
+    permission_classes = (IsAuthenticated,)
+    # получение позиций из сток листа
+
+    @staticmethod
+    def get(request, pk=None, *args, **kwargs):
+        if not pk:
+            return JsonResponse({'error': 'No pk'})
+        # получение содержимого сток листов покупателями
         if request.user.type == 'cnee':
             obj = StockList.objects.filter(id=pk, status='offered').first()
             if not obj:
                 return JsonResponse({'incorrect id': f'{pk}'})
+            # передача через context информации о пользователе
             serializer = GetStockItemsSerializer(obj, context={'request': request.user.type})
             return Response(serializer.data)
 
+        # получение содержимого сток листов пользователями shpr
         elif request.user.type == 'shpr':
+            # проверка принадлежности сток листа поставщику
             obj = StockList.objects.select_related('company').filter(id=pk, company__user=request.user).first()
             if not obj:
                 return JsonResponse({'incorrect id': f'{pk}'})
             serializer = GetStockItemsSerializer(obj, context={'request': request.user.type})
             return Response(serializer.data)
 
+        # получение содержимого сток листов пользователями shpr/cnee
         elif request.user.type == 'shpr/cnee':
             obj = StockList.objects.select_related('company').filter(id=pk).first()
             if not obj:
                 return JsonResponse({'incorrect id': f'{pk}'})
+            # проверка принадлежности сток листа пользователю как поставщику
             if obj.company.user == request.user:
+                # пользователь получает сток лист как поставщик и как клиент - полная информация
                 return Response(GetStockItemsSerializer(obj, context={'request': 'shpr/cnee'}).data)
+            # если сток не принадлежит пользователю как поставщику, то пользователь получает его как клиент
             if obj.status == 'offered' and obj.company.user != request.user:
-                serializer = GetStockItemsSerializer(obj, context={'request': 'cnee'})
-                return Response(serializer.data)
+                return Response(GetStockItemsSerializer(obj, context={'request': 'cnee'}).data)
             return JsonResponse({'incorrect id': f'{pk}'})
 
-        elif request.user.type =='staff':
+        # получение содержимого сток листов пользователями staff
+        elif request.user.type == 'staff':
             obj = StockList.objects.get(id=pk)
             if not obj:
                 return JsonResponse({'incorrect id': f'{pk}'})
             return Response(GetStockItemsSerializer(obj, context={'request': request.user.type}).data)
-        return JsonResponse({'error': 'incorrect user type'})
 
 
 class StockItemsUpload(APIView):
     permission_classes = (IsAuthenticated, )
+
     def post(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
@@ -83,7 +181,7 @@ class StockItemsUpload(APIView):
             except ValidationError as e:
                 return JsonResponse({'Status': False, 'Error': str(e)})
         else:
-            return JsonResponse({'error': 'nourl'})
+            return JsonResponse({'error': 'no url'})
 
         # для загрузки позиций из стока поставщиком
         if request.user.type in ['shpr', 'shpr/cnee']:
@@ -94,7 +192,7 @@ class StockItemsUpload(APIView):
             if not stock_obj:
                 return JsonResponse({'error': f'stock with id {pk} already closed or offered or not belongs to user'})
             # проверка ранее загруженных позиций, если есть хоть одна позиция в статусе
-            # True то любые изменения через view itms
+            # True то любые изменения через view items
             if StockListItem.objects.filter(stock_list=pk, status=True).first():
                 return JsonResponse({'error': 'items for this stock list already uploaded'})
 
@@ -116,7 +214,7 @@ class StockItemsUpload(APIView):
                 os.remove(file_name)
                 return JsonResponse({'error': 'incorrect fields in file'})
             # проход по файлу
-            result_list = {} # создание словаря ошибок
+            result_list = {}  # создание словаря ошибок
             for rownum in range(1, sheet.nrows):
                 row = sheet.row_values(rownum)
                 # получение/ создание позиции
@@ -164,8 +262,8 @@ class StockItemsUpload(APIView):
                                        user=User.objects.filter(type='staff').first(),
                                        obj=stock_obj,
                                        request_data={'status': 'items uploaded'})
-                return JsonResponse({'stock list status': 'all items succesfully uploaded'})
-            # ответ если не все было загруженно
+                return JsonResponse({'stock list status': 'all items successfully uploaded'})
+            # ответ если не все было загружено
             return JsonResponse({'status': f'added {stock_obj.id}',
                                  'items': result_list})
 
@@ -183,7 +281,7 @@ class StockItemsUpload(APIView):
             urllib.request.urlretrieve(url, file_name)
             wb = xlrd.open_workbook(file_name)
             sheet = wb.sheet_by_index(0)
-            # Проверка шапки файла на соотвествие
+            # Проверка шапки файла на соответствие
             if sheet.row_values(0) != ['code', 'russian_name', 'sale_price']:
                 os.remove(file_name) # удаление временного файла
                 return JsonResponse({'error': 'incorrect fields in file'})
@@ -205,7 +303,7 @@ class StockItemsUpload(APIView):
                                          data={'russian_name': row[1], 'sale_price': row[2]})
             os.remove(file_name)
             if not result_list:
-                return JsonResponse({'stock list status': 'all items succesfully uploaded'})
+                return JsonResponse({'stock list status': 'all items successfully uploaded'})
             return JsonResponse(result_list)
         return JsonResponse({'error': 'no rights'})
 
@@ -280,14 +378,18 @@ class Stock(APIView):
             return JsonResponse({'error': 'No pk'})
         # обновление сток листа поставщиками.
         if request.user.type in ['shpr', 'shpr/cnee']:
-            instance = StockList.objects.select_related('company', 'stock_type').filter(id=pk, company__user=request.user).first()
+            instance = StockList.objects.select_related('company', 'stock_type').filter(id=pk,
+                                                                                        company__user=request.user).first()
             if not instance:
                 return JsonResponse({'incorrect id': f'{pk}'})
             stock = StockUpdateShprSerializer(context={"request": request}, data=request.data)
             stock.is_valid(raise_exception=True)
             stock = stock.update(instance=instance, validated_data=request.data,)
             # отправка уведомления staff об изменениях
-            stock_list_update.send(sender=self.__class__, user=User.objects.filter(type='staff').first(), obj=stock, request_data=request.data)
+            stock_list_update.send(sender=self.__class__,
+                                   user=User.objects.filter(type='staff').first(),
+                                   obj=stock,
+                                   request_data=request.data)
             return JsonResponse({'status': ' successful',
                                  'stock_id': f'{stock.id} updated'})
         # обновление сток листа пользователем staff
@@ -317,7 +419,7 @@ class Stock(APIView):
                 return JsonResponse({'incorrect id': f'{pk}'})
             obj.status = 'closed'
             obj.save()
-            # информирование стафф об размещении новго сток листа
+            # информирование стафф об размещении нового сток листа
             stock_list_update.send(sender=self.__class__,
                                    user=User.objects.filter(type='staff').first(),
                                    obj=obj,
@@ -369,14 +471,14 @@ class UserShipTo(APIView):
         serializer = ShipAddressesSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         company = CompanyDetails.objects.filter(id=request.data['company'], user=request.user.id)
-        # проверка компании на соотвествие пользователю
+        # проверка компании на соответствие пользователю
         if not company:
             return JsonResponse({'error': f'company with id {request.data["company"]} belongs to other user'})
         serializer.create(validated_data=request.data)
         return JsonResponse({'created': f'object{serializer}'})
 
     """
-    Можно обновлять удаленный ранее обьект с помощью поиска по пк, он будет возвращен из адленных.
+    Можно обновлять удаленный ранее объект с помощью поиска по пк, он будет возвращен из удаленных.
     """
 
     def put(self, request, pk=None, *args, **kwargs):
@@ -389,15 +491,14 @@ class UserShipTo(APIView):
             # проверка на ид адреса
             instance = ShipAddresses.objects.get(id=pk)
         except:
-            return JsonResponse({'error': 'object doen not exvcists'})
+            return JsonResponse({'error': 'object doesnt not exists'})
         serializer = ShipAddressesUpdateSerializer(data=request.data, instance=instance, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return JsonResponse({'status': f'item with pk{pk} updated'})
 
     """
-    Фактическое удаление не предусмотренно т.к. адрес можно аждлить, а он ранее участвовал в доставках, потому меняется
-    статус отображения "active"
+    Фактическое удаление не предусмотренно т.к. адрес мог ранее использоваться, меняется только статус.
     """
 
     def delete(self, request, pk=None, *args, **kwargs):
@@ -452,7 +553,7 @@ class UserCompanies(APIView):
         return JsonResponse({'status': serializer.data})
 
     """
-    Изменение записи - происходит поиск по бд определнной записи с отсевом по авторству.
+    Изменение записи - происходит поиск по бд определенной записи с отсевом по авторству.
     если пользователь хочет изменить ранее удаленную запись то она восстанавливается и восстанавливаются все 
     адреса доставки связанные с ней. П.С. совершенно не логично, как он может изменить то, чего не видит... 
     """
@@ -521,7 +622,7 @@ class SetStockTypes(APIView):
 class SetFreightRates(APIView):
     permission_classes = (IsStaff,)
     """"
-    Загрузка значений стоимости фрахта досутпно только пользователям групы staff
+    Загрузка значений стоимости фрахта доступно только пользователям группы staff
     Загрузка возможна только по ссылке с файлом формата xls(не XLSX)
     """
 
@@ -540,7 +641,7 @@ class SetFreightRates(APIView):
         sheet = wb.sheet_by_index(0)
         state, _ = State.objects.get_or_create(name=request.data['state'].capitalize())  # идентифицируется страна
         """ 
-        Предполагается, что фаил всегда одного вида, меняется лишь количество строк 
+        Предполагается, что файл всегда одного вида, меняется лишь количество строк 
         Всегда происходит поиск совпадений и их обновление. 
         В перспективе проще сделать сразу загрузку всех городов мира. с сортировкой по странам - упростит код и логику
          
@@ -554,7 +655,7 @@ class SetFreightRates(APIView):
 
     """ 
     Получение информации по стоимостям фрахта для всех городов по названию страны
-     или для определнного города по его названию
+     или для определенного города по его названию
     """
 
     def get(self, request, pk=None, *args, **kwargs):
@@ -709,89 +810,3 @@ class ConfirmAccount(APIView):
         return JsonResponse({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'})
 
 
-class Orders(APIView):
-    permission_classes = [Or(And(IsCneeShpr, ), And(IsAuthenticated, IsStaff), )]
-
-    def get(self, request, pk=None, *args, **kwargs):
-        if pk:
-            order = Order.objects.filter(id=pk, user=request.user.id).first()
-            if not order:
-                return JsonResponse({'error': f'order with id {pk} not found'})
-            serializer = OrderSerializer(order)
-            return Response(serializer.data)
-
-    def post(self, request, *args, **kwargs):
-        # проверка на актуальность сток листа
-        if not StockList.objects.filter(id=request.data['stock_list'], status='offered'):
-            return JsonResponse({'stocklist': 'not found'})
-        # проверка входящего джсона
-        if not {'items', 'ship_to', 'stock_list'}.issubset(request.data) or not isinstance(request.data['items'], list):
-            return JsonResponse({'error': 'incorrect fields'})
-        request.data['stock_list'] = StockList.objects.get(id=request.data['stock_list'])
-        request.data['user'] = request.user
-        # проверка адреса получателя на принадлежность пользователю
-        ship_to = ShipAddresses.objects.select_related('company').filter(id=request.data['ship_to'],
-                                                                         company__user=request.user).first()
-
-        if not ship_to:
-            return JsonResponse({'error': f'incorrect ship_to id'})
-        # проверка количества заказанного
-        if sum([i['bags'] for i in request.data['items']]) % request.data['stock_list'].bags_quantity != 0:
-            return JsonResponse({'error': 'incorrect bags quantity'})
-        request.data['ship_to'] = ship_to
-        # проверка наличия позиций и их количества в наличии
-        for item in request.data['items']:
-            item_obj = StockListItem.objects.filter(id=item['id'], status=True,
-                                                    stock_list=request.data['stock_list'].id).first()
-            if not item_obj:
-                return JsonResponse({'error': f'incorrect item id: {item["id"]}'})
-            if (item_obj.quantity_bag * item['bags']) + item_obj.ordered > item_obj.limit and item_obj.limit != 0:
-                return JsonResponse({'status': f'not enough on stock for item  with id: {item["id"]}'})
-        # создание самого заказа
-        serializer = OrderSerializer(request.data)
-        order, items = serializer.get_or_create(data=request.data)
-        # создание позиций заказа
-        for item in items:
-            item_obj = StockListItem.objects.filter(id=item['id'], status=True).first()
-            if not item_obj:
-                return JsonResponse({'status': f'not available item {item["id"]}'})
-            item_obj.ordered = item_obj.ordered + (item_obj.quantity_bag * item['bags'])
-            item_obj.save()
-            data = {'bags': item['bags'],
-                    'amount': item_obj.sale_price * (item['bags'] * item_obj.quantity_bag),
-                    'item': item_obj,
-                    'order': order}
-            serializer = OrderedItemSerializer(data)
-            serializer.create_or_update(data=data)
-        return JsonResponse({'status': 'succesfull',
-                             'order_id': order.id})
-
-    def put(self, request, pk=None, *args, **kwargs):
-        if not pk:
-            return JsonResponse({'error': 'No pk'})
-        # пользователь группы staff может только менять статус заказа и дату доставки
-        if request.user.type == 'staff':
-            if not {'shipment_date', 'status'}.issubset(request.data):
-                return JsonResponse({'error': 'incorrect data'})
-            try:
-                instance = Order.objects.get(id=pk)
-            except:
-                return JsonResponse({'error': f'incorrect order id: {pk}'})
-            serializer = OrderSerializer(request.data)
-            serializer.update(validated_data=request.data, instance=instance)
-
-        # пользователь (cnee или shpr/cnee) может изменять только ship-to, статус заказа меняется на updated автоматичеки
-        instance = Order.objects.filter(id=pk, user=request.user).first()
-        if not instance:
-            return JsonResponse({'error': 'incorrect pk or order not belongs to u'})
-        if not {'ship_to'}.issubset(request.data):
-            return JsonResponse({'error': 'incorrect data'})
-        request.data['ship_to'] = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id,
-                                                                                         id=request.data[
-                                                                                             'ship_to']).first()
-        if not request.data['ship_to']:
-            return JsonResponse({'error': f'incorrect ship_to id'})
-        request.data['status'] = 'Updated'
-        serializer = OrderSerializer(request.data)
-        serializer.update(validated_data=request.data, instance=instance)
-        return JsonResponse({'ok': 'finished'})

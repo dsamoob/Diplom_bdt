@@ -301,7 +301,7 @@ Content-Type: application/json
 }
 
 ###
-GET http://127.0.0.1:8000/api/v1/filldb/freight/110/
+GET http://127.0.0.1:8000/api/v1/filldb/freight/
 Authorization: Token user1staff
 Content-Type: application/json
 
@@ -346,8 +346,8 @@ Authorization: Token user1staff
 Content-Type: application/json
 
 ###
-GET http://127.0.0.1:8000/api/v1/filldb/state/7/
-Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
+GET http://127.0.0.1:8000/api/v1/filldb/state/
+Authorization: Token user1staff
 Content-Type: application/json
 ###
 POST http://127.0.0.1:8000/api/v1/user/register

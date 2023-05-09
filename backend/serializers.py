@@ -163,11 +163,6 @@ class CompanyDetailsUpdateSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class StockListReadSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = StockList
-        fields = '__all__'
-
 
 class UserSerializer(serializers.ModelSerializer):
     user_companies = CompanyDetailsSerializer(read_only=True, many=True)
@@ -179,6 +174,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 """_______________________Блок сериализаторов для отображения сток листов____________________________________________"""
+
 
 class GetItems(serializers.ModelSerializer):
     code = serializers.SerializerMethodField('get_code')
@@ -313,7 +309,7 @@ class OrderedItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-"""______________________Блок сериализаторов для рбаоты со сток листами_____________________________________-"""
+"""______________________Блок сериализаторов для работы со сток листами_____________________________________-"""
 
 
 class GetStockCneeSerializer(serializers.ModelSerializer):
