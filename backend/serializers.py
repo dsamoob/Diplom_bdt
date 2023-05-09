@@ -180,7 +180,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 """_______________________Блок сериализаторов для отображения сток листов____________________________________________"""
 
-class TestItems(serializers.ModelSerializer):
+class GetItems(serializers.ModelSerializer):
     code = serializers.SerializerMethodField('get_code')
     english_name = serializers.SerializerMethodField('get_english_name')
     scientific_name = serializers.SerializerMethodField('get_scientific_name')
@@ -230,7 +230,7 @@ class TestItems(serializers.ModelSerializer):
                       'scientific_name', 'russian_name',
                       'size', 'offer_price', 'sale_price', 'quantity_per_bag',
                       'quantity_in_box', 'status', 'ordered', 'limit']
-        super(TestItems, self).__init__(*args, **kwargs)
+        super(GetItems, self).__init__(*args, **kwargs)
         if fields is not None:
             allowed = set(fields)
             existing = set(self.fields)
@@ -264,13 +264,9 @@ class GetStockItemsSerializer(serializers.ModelSerializer):
             obj = StockListItem.objects.select_related('stock_list',
                                                        'item').filter(stock_list=obj.id,
                                                                       status=True).order_by('item__code')
-        if self.context.get("request") == 'shpr':
+        if self.context.get("request") in ['shpr', 'shpr/cnee', 'staff']:
             obj = StockListItem.objects.select_related('stock_list', 'item').filter(stock_list=obj.id)
-        if self.context.get("request") == 'shpr/cnee':
-            obj = StockListItem.objects.select_related('stock_list', 'item').filter(stock_list=obj.id)
-        if self.context.get("request") == 'staff':
-            obj = StockListItem.objects.select_related('stock_list', 'item').filter(stock_list=obj.id)
-        serializer = TestItems(obj, many=True, context={'request': self.context.get('request')})
+        serializer = GetItems(obj, many=True, context={'request': self.context.get('request')})
         return serializer.data
 
     class Meta:

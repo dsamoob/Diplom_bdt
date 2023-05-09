@@ -84,8 +84,12 @@ Content-Type: application/json
 GET http://127.0.0.1:8000/api/v1/stock/8/
 Authorization: Token user1staff
 Content-Type: application/json
-###___Получение сток листов покупателем
-GET http://127.0.0.1:8000/api/v1/stock/9/
+###___Получение сток листов покупателем по ид
+GET http://127.0.0.1:8000/api/v1/stock/13/
+Authorization: Token user2cnee
+Content-Type: application/json
+###___Получение всех активных сток листов покупателем
+GET http://127.0.0.1:8000/api/v1/stock/
 Authorization: Token user2cnee
 Content-Type: application/json
 ###___Получение сток листов поставщиком
@@ -96,6 +100,8 @@ Content-Type: application/json
 GET http://127.0.0.1:8000/api/v1/stock/8/
 Authorization: Token user4shpr/cnee
 Content-Type: application/json
+
+
 ###___Размещение сток листа поставщиком, поставщиком/покупателем
 POST http://127.0.0.1:8000/api/v1/stock/
 Authorization: Token user3shpr
