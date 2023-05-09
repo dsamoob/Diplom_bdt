@@ -14,10 +14,10 @@ new_stock_list = Signal()
 stock_list_update = Signal()
 
 @receiver(stock_list_update)
-def stock_list_update_signal(obj, request_data, **kwargs):
-    user = User.objects.get(type='staff')
+def stock_list_update_signal(obj, request_data, user=None, **kwargs):
+
     msg = EmailMultiAlternatives(
-        f"Сток обновился лист от {obj.company.name}",
+        f"Сток лист от {obj.company.name} обновился",
 
         f'{request_data}',
         # from:

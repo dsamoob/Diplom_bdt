@@ -177,12 +177,10 @@ class StockList(models.Model):
         ('closed', 'Закрыто'),
         ('finished', 'Завершено')
     )
-
     TRANSPORT_TYPE = (
         ('Air', 'Самолет'),
         ('Truck', 'Автомобиль'),
     )
-
     CURRENCY_TYPE = (
         ('USD', 'Доллар США'),
         ('EUR', 'Евро'),
@@ -202,9 +200,6 @@ class StockList(models.Model):
     freight_rate = models.DecimalField(max_digits=7, decimal_places=2)
     ship_from = models.ForeignKey(ShipAddresses, on_delete=models.CASCADE)
     transport_type = models.CharField(max_length=15, choices=TRANSPORT_TYPE)
-
-
-
 class Item(models.Model):
     company = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE)
     code = models.CharField(max_length=10)
@@ -212,17 +207,14 @@ class Item(models.Model):
     scientific_name = models.CharField(max_length=100, verbose_name='Научное название')
     russian_name = models.CharField(max_length=100, verbose_name='Русское название', blank=True)
     size = models.CharField(max_length=15, verbose_name='Размер', default='All size')
-
     def __str__(self):
         return f'{self.code} {self.english_name} {self.scientific_name} {self.russian_name} {self.size}'
-
-
 class StockListItem(models.Model):
-    item = models.ForeignKey(Item, on_delete=models.CASCADE)
-    stock_list = models.ForeignKey(StockList, on_delete=models.CASCADE)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='items')
+    stock_list = models.ForeignKey(StockList, on_delete=models.CASCADE, related_name='stock_items')
     offer_price = models.DecimalField(max_digits=7, decimal_places=2, verbose_name='Цена закупка')
     sale_price = models.DecimalField(max_digits=7, decimal_places=2, verbose_name='Цена продажа', blank=True, default=0)
-    quantity_bag = models.IntegerField(verbose_name='Кол-во в пакете')
+    quantity_per_bag = models.IntegerField(verbose_name='Кол-во в пакете')
     ordered = models.IntegerField(verbose_name='Заказано', default=0)
     limit = models.IntegerField(verbose_name='Кол-во в наличии', blank=True)
     status = models.BooleanField(default=True)
@@ -230,9 +222,6 @@ class StockListItem(models.Model):
     scientific_name = models.CharField(max_length=100, verbose_name='Научное название', blank=True)
     russian_name = models.CharField(max_length=100, verbose_name='Русское название', blank=True)
     size = models.CharField(max_length=15, verbose_name='Размер', blank=True)
-
-
-
 
 class Order(models.Model):
     SHIPMENT_STATUS = (

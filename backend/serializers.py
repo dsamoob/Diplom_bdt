@@ -7,10 +7,7 @@ from datetime import timedelta as td
 
 from rest_framework.serializers import ValidationError as VE
 
-
 from django.core.exceptions import ValidationError
-
-
 
 
 class CitySerializer(serializers.ModelSerializer):
@@ -67,7 +64,8 @@ class ShipToSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ShipAddresses
-        fields = ['id', 'state', 'city', 'street', 'contact_person', 'phone', 'ship_target', 'company_id' ]
+        fields = ['id', 'state', 'city', 'street', 'contact_person', 'phone', 'ship_target', 'company_id']
+
 
 class ShipAddressesUpdateSerializer(serializers.ModelSerializer):
 
@@ -83,6 +81,7 @@ class ShipAddressesUpdateSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
     class Meta:
         model = ShipAddresses
         fields = '__all__'
@@ -112,6 +111,7 @@ class CompanySerializer(serializers.ModelSerializer):
         model = CompanyDetails
         fields = '__all__'
 
+
 class CompanyDetailsSerializer(serializers.ModelSerializer):
     state = serializers.SerializerMethodField('get_state')
     city = serializers.SerializerMethodField('get_city')
@@ -122,7 +122,6 @@ class CompanyDetailsSerializer(serializers.ModelSerializer):
 
     def get_city(self, obj):
         return f'{obj.city}'
-
 
     class Meta:
         model = CompanyDetails
@@ -164,17 +163,14 @@ class CompanyDetailsUpdateSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-
-
 class StockListReadSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = StockList
         fields = '__all__'
 
+
 class UserSerializer(serializers.ModelSerializer):
     user_companies = CompanyDetailsSerializer(read_only=True, many=True)
-
 
     class Meta:
         model = User
@@ -182,53 +178,107 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ('id',)
 
 
-"""_______________________Блок сериализаторов для работы с заказами_______________________________-"""
+"""_______________________Блок сериализаторов для отображения сток листов____________________________________________"""
 
-
-class ItemsGetCneeSerializer(serializers.ModelSerializer):
-
+class TestItems(serializers.ModelSerializer):
     code = serializers.SerializerMethodField('get_code')
     english_name = serializers.SerializerMethodField('get_english_name')
     scientific_name = serializers.SerializerMethodField('get_scientific_name')
     russian_name = serializers.SerializerMethodField('get_russian_name')
     size = serializers.SerializerMethodField('get_size')
-    sale_price = serializers.SerializerMethodField('get_sale_price')
-    quantity_in_bag = serializers.SerializerMethodField('get_quantity_in_bag')
     quantity_in_box = serializers.SerializerMethodField('get_quantity_in_box')
 
     def get_code(self, obj):
-        return f'{obj}'
+        return obj.item.code
 
     def get_english_name(self, obj):
         if not obj.english_name:
             return f'{obj.item.english_name}'
         return f'{obj.english_name}'
-        # return f'{obj.stock_list}'
 
     def get_scientific_name(self, obj):
-        return f'{obj.item.scientific_name}'
-        # return f'{obj}'
+        if not obj.scientific_name:
+            return f'{obj.item.scientific_name}'
+        return f'{obj.scientific_name}'
+
     def get_russian_name(self, obj):
-        return f'{obj.item.russian_name}'
-        # return f'{obj}'
+        if not obj.russian_name:
+            return f'{obj.item.russian_name}'
+        return f'{obj.russian_name}'
+
     def get_size(self, obj):
-        return f'{obj.item.size}'
-        # return f'{obj}'
-    def get_quantity_in_bag(self, obj):
-        return f'{obj.quantity_bag}'
-        # return f'{obj}'
+        if not obj.size:
+            return f'{obj.item.size}'
+        return f'{obj.size}'
+
     def get_quantity_in_box(self, obj):
-        return f'{obj.stock_list.bags_quantity * obj.quantity_bag}'
-        # return f'{obj}'
-    def get_sale_price(self, obj):
-        return f'{obj.sale_price}'
-        # return f'{obj}'
+        return obj.stock_list.bags_quantity * obj.quantity_per_bag
+
+    def __init__(self, *args, **kwargs):
+        request = kwargs.get('context', {}).get('request')
+        fields = None
+        if request == 'cnee':
+            fields = ['id', 'code', 'english_name', 'scientific_name', 'russian_name', 'size',
+                      'quantity_per_bag', 'quantity_in_box', 'sale_price']
+        elif request == 'shpr':
+            fields = ['id', 'code', 'english_name',
+                      'scientific_name', 'russian_name',
+                      'size', 'offer_price', 'quantity_per_bag',
+                      'quantity_in_box', 'status', 'ordered', 'limit']
+        elif request == 'shpr/cnee':
+            fields = ['id', 'code', 'english_name',
+                      'scientific_name', 'russian_name',
+                      'size', 'offer_price', 'sale_price', 'quantity_per_bag',
+                      'quantity_in_box', 'status', 'ordered', 'limit']
+        super(TestItems, self).__init__(*args, **kwargs)
+        if fields is not None:
+            allowed = set(fields)
+            existing = set(self.fields)
+            for field_name in existing - allowed:
+                self.fields.pop(field_name)
+
     class Meta:
         model = StockListItem
-        # fields = '__all__'
-        fields = ['id', 'code', 'english_name', 'scientific_name', 'russian_name', 'size',
-                  'quantity_in_bag', 'quantity_in_box', 'sale_price']
+        fields = '__all__'
         order_by = 'id'
+
+
+class GetStockItemsSerializer(serializers.ModelSerializer):
+    stock_items = serializers.SerializerMethodField('get_stock_items')
+
+    def __init__(self, *args, **kwargs):
+        request = kwargs.get('context', {}).get('request')
+        fields = None
+        if request == 'cnee':
+            fields = ['id', 'shipment_date', 'status', 'orders_till_date', 'currency_type', 'currency_rate',
+                      'stock_items']
+        super(GetStockItemsSerializer, self).__init__(*args, **kwargs)
+        if fields is not None:
+            allowed = set(fields)
+            existing = set(self.fields)
+            for field_name in existing - allowed:
+                self.fields.pop(field_name)
+
+    def get_stock_items(self, obj):
+        if self.context.get("request") == 'cnee':
+            obj = StockListItem.objects.select_related('stock_list',
+                                                       'item').filter(stock_list=obj.id,
+                                                                      status=True).order_by('item__code')
+        if self.context.get("request") == 'shpr':
+            obj = StockListItem.objects.select_related('stock_list', 'item').filter(stock_list=obj.id)
+        if self.context.get("request") == 'shpr/cnee':
+            obj = StockListItem.objects.select_related('stock_list', 'item').filter(stock_list=obj.id)
+        if self.context.get("request") == 'staff':
+            obj = StockListItem.objects.select_related('stock_list', 'item').filter(stock_list=obj.id)
+        serializer = TestItems(obj, many=True, context={'request': self.context.get('request')})
+        return serializer.data
+
+    class Meta:
+        model = StockList
+        fields = "__all__"
+
+
+"""_______________________Блок сериализаторов для работы с заказами_______________________________-"""
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -274,13 +324,15 @@ class GetStockCneeSerializer(serializers.ModelSerializer):
     """ Сериализатор для получения сток листов клиентами """
     stock_type = serializers.SlugRelatedField('name', read_only=True)
     company = serializers.SlugRelatedField('name', read_only=True)
+
     class Meta:
         model = StockList
-        exclude = ('freight_rate', 'url', 'ship_from')
+        exclude = ('freight_rate', 'ship_from')
 
 
 class GetStockShprSerizlier(serializers.ModelSerializer):
     """ Сериализатор для получения сток листов поставщиками """
+
     class Meta:
         model = StockList
         fields = '__all__'
@@ -299,7 +351,6 @@ class GetStockStaffSerializator(serializers.ModelSerializer):
 
 class StockListCreateSerializer(serializers.ModelSerializer):
     """ Сериализатор для создания и обновления сток листов """
-
 
     def validate_company(self, value):
         user = self.context["request"].user
@@ -342,10 +393,10 @@ class StockListCreateSerializer(serializers.ModelSerializer):
 
 class StockUpdateShprSerializer(serializers.ModelSerializer):
     """ Сериализатор для обновления стока поставщиками """
+
     def validate_company(self, value):
         user = self.context["request"].user
         if value.user != user:
-
             raise VE(['not belongs to user'])
         return value
 
@@ -405,6 +456,7 @@ class StockUpdateShprSerializer(serializers.ModelSerializer):
 
 class StockUpdateStaffSerializer(serializers.ModelSerializer):
     """ Сериализатор для обновления сток листа пользователем staff """
+
     def validate_orders_till_date(self, value):
         if value < date.today():
             raise VE(['incorrect, finishing orders must be later than today'])
@@ -432,6 +484,7 @@ class StockUpdateStaffSerializer(serializers.ModelSerializer):
         instance.name = validated_data.get('name', 'no_name')
         instance.save()
         return instance
+
     class Meta:
         model = StockList
         fields = ['orders_till_date',
@@ -461,9 +514,12 @@ class ItemUploadingSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_or_create(self, data):
-
         obj, _ = Item.objects.get_or_create(**data)
         return obj
+
+    def get_or_update(self, obj, data):
+        if obj.item.russian_name:
+            print(obj.item.russian_name)
 
 
 class StockListItemSerializer(serializers.ModelSerializer):
@@ -474,6 +530,27 @@ class StockListItemSerializer(serializers.ModelSerializer):
         data['status'] = False
         obj, _ = StockListItem.objects.get_or_create(**data)
         return obj
+
+    def update(self, instance, validated_data):
+        if validated_data[6] == "":
+            instance.limit = 0
+        if validated_data[6] != "":
+            instance.limit = validated_data[6]
+        if validated_data[5] / instance.stock_list.bags_quantity != instance.quantity_per_bag:
+            instance.quantity_per_bag = validated_data[5] / instance.stock_list.bags_quantity
+        if instance.offer_price != validated_data[4]:
+            instance.offer_price = validated_data[4]
+        instance.save()
+        return instance
+
+    def get_or_update(self, obj, data: dict):
+        if not obj.item.russian_name:
+            item = Item.objects.filter(id=obj.item.id).first()
+            item.russian_name = data['russian_name'].upper()
+            item.save()
+        obj.sale_price = data['sale_price']
+        obj.status = True
+        obj.save()
 
     class Meta:
         model = StockListItem

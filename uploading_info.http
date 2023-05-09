@@ -43,7 +43,26 @@ Content-Type: application/json
   "items": 12
 
 }
-###______________________Stock/upload/<pk>_____________________________________________________________________________
+###_____________________Stock/Items/<pk>/_______________________________________________________________________________
+### Запрос позиций из стока покупателем
+GET http://127.0.0.1:8000/api/v1/stock/items/13/
+Authorization: Token user2cnee
+Content-Type: application/json
+### Запрос позиций из стока поставщиком
+GET http://127.0.0.1:8000/api/v1/stock/items/13/
+Authorization: Token user3shpr
+Content-Type: application/json
+### Запрос позиций из стока постуавщиком/клиентом
+GET http://127.0.0.1:8000/api/v1/stock/items/13/
+Authorization: Token user4shpr/cnee
+Content-Type: application/json
+### Запрос позиций из стока staff
+GET http://127.0.0.1:8000/api/v1/stock/items/13/
+Authorization: Token user1staff
+Content-Type: application/json
+
+###______________________Stock/upload/<pk>/_____________________________________________________________________________
+### Загрузка позиций к стоку поставщиком/ поставщиком-клиентом
 POST http://127.0.0.1:8000/api/v1/stock/upload/13/
 Authorization: Token user3shpr
 Content-Type: application/json
@@ -51,7 +70,7 @@ Content-Type: application/json
 {
 "url": "https://github.com/dsamoob/Diplom_bdt/blob/main/Singapore_stock.xls?raw=true"
 }
-###
+### Обновление позиций в стоке пользователем staff (российское название и цена продажи)
 POST http://127.0.0.1:8000/api/v1/stock/upload/13/
 Authorization: Token user1staff
 Content-Type: application/json
@@ -66,8 +85,8 @@ GET http://127.0.0.1:8000/api/v1/stock/8/
 Authorization: Token user1staff
 Content-Type: application/json
 ###___Получение сток листов покупателем
-GET http://127.0.0.1:8000/api/v1/stock/2/
-Authorization: Token
+GET http://127.0.0.1:8000/api/v1/stock/9/
+Authorization: Token user2cnee
 Content-Type: application/json
 ###___Получение сток листов поставщиком
 GET http://127.0.0.1:8000/api/v1/stock/8/
@@ -101,8 +120,8 @@ Content-Type: application/json
 
 {
   "company": 3,
-  "orders_till_date" : "2023-05-07",
-  "shipment_date": "2023-05-08",
+  "orders_till_date" : "2023-05-12",
+  "shipment_date": "2023-05-13",
   "stock_type": 1,
   "bags_quantity": 1,
   "box_weight": 13.4,
@@ -113,15 +132,15 @@ Content-Type: application/json
 
 }
 ###___Изменение сток листа пользователем staff
-PUT http://127.0.0.1:8000/api/v1/stock/9/
+PUT http://127.0.0.1:8000/api/v1/stock/13/
 Authorization: Token user1staff
 Content-Type: application/json
 
 {
-  "orders_till_date" : "2023-04-29",
-  "shipment_date": "2023-05-08",
-  "status": "updated",
-  "name": "Сингапур 2023-05-08",
+  "orders_till_date" : "2023-05-29",
+  "shipment_date": "2023-05-30",
+  "status": "offered",
+  "name": "Сингапур 2023-05-30",
   "currency_rate": 83.5
 }
 ###___Проверка метода пут для пользователя cnee
@@ -129,10 +148,15 @@ PUT http://127.0.0.1:8000/api/v1/stock/9/
 Authorization: Token user2cnee
 Content-Type: application/json
 
-###___Удаление сток листа
+###___Удаление сток листа поставщиком
 DELETE http://127.0.0.1:8000/api/v1/stock/9/
 Authorization: Token user3shpr
 Content-Type: application/json
+###___Удаление сток листа staff
+DELETE http://127.0.0.1:8000/api/v1/stock/1/
+Authorization: Token user1staff
+Content-Type: application/json
+
 ###____________________________Stock/<PK> finished_____________________________________________________________________
 
 ###___ShipperAddresses___
@@ -256,7 +280,7 @@ Content-Type: application/json
 }
 ###
 GET http://127.0.0.1:8000/api/v1/filldb/stocktypes/
-Authorization: Token d2a448d9f8696113431a219349bf49f3efd15995
+Authorization: Token user1staff
 Content-Type: application/json
 
 
@@ -272,7 +296,7 @@ Content-Type: application/json
 
 ###
 GET http://127.0.0.1:8000/api/v1/filldb/freight/110/
-Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
+Authorization: Token user1staff
 Content-Type: application/json
 
 {
@@ -312,7 +336,7 @@ Content-Type: application/json
 }
 ###
 GET http://127.0.0.1:8000/api/v1/filldb/state/
-Authorization: Token 1cc10e80a3027cfa31c7a0cf348112204c06476f
+Authorization: Token user1staff
 Content-Type: application/json
 
 ###
