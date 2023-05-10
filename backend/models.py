@@ -144,6 +144,10 @@ class CompanyDetails(models.Model):
 
 
 class ShipAddresses(models.Model):
+    TRANSPORT_TYPE = (
+        ('Air', 'Самолет'),
+        ('Truck', 'Автомобиль'),
+        ('Self', 'Самовывоз'))
     city = models.ForeignKey(City, on_delete=models.CASCADE)
     company = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE, related_name='ship_addr')
     street = models.CharField(max_length=150, verbose_name='Улица')
@@ -151,8 +155,7 @@ class ShipAddresses(models.Model):
     contact_person = models.CharField(max_length=150, verbose_name='Контактное лицо')
     phone = models.CharField(max_length=20, verbose_name='Телефон контактного лица')
     active = models.BooleanField(default=True)
-    ship_target = models.CharField(max_length=12, choices=SHIP_TARGETS)
-
+    transport_type = models.CharField(max_length=15, choices=TRANSPORT_TYPE, default='Truck')
 
 
 class StockType(models.Model):
@@ -200,6 +203,7 @@ class StockList(models.Model):
     freight_rate = models.DecimalField(max_digits=7, decimal_places=2)
     ship_from = models.ForeignKey(ShipAddresses, on_delete=models.CASCADE)
     transport_type = models.CharField(max_length=15, choices=TRANSPORT_TYPE)
+
 class Item(models.Model):
     company = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE)
     code = models.CharField(max_length=10)
@@ -207,8 +211,11 @@ class Item(models.Model):
     scientific_name = models.CharField(max_length=100, verbose_name='Научное название')
     russian_name = models.CharField(max_length=100, verbose_name='Русское название', blank=True)
     size = models.CharField(max_length=15, verbose_name='Размер', default='All size')
+
     def __str__(self):
         return f'{self.code} {self.english_name} {self.scientific_name} {self.russian_name} {self.size}'
+
+
 class StockListItem(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='items')
     stock_list = models.ForeignKey(StockList, on_delete=models.CASCADE, related_name='stock_items')
@@ -222,6 +229,7 @@ class StockListItem(models.Model):
     scientific_name = models.CharField(max_length=100, verbose_name='Научное название', blank=True)
     russian_name = models.CharField(max_length=100, verbose_name='Русское название', blank=True)
     size = models.CharField(max_length=15, verbose_name='Размер', blank=True)
+
 
 class Order(models.Model):
     SHIPMENT_STATUS = (

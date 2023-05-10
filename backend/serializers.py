@@ -1,9 +1,10 @@
 from backend.models import User, CompanyDetails, State, \
-    City, ShipAddresses, FreightRates, StockType, StockList, Item, StockListItem, Order, OrderedItems
+    City, ShipAddresses, FreightRates, StockType, StockList, Item, StockListItem, Order, OrderedItems, FreightRatesSet
 from rest_framework import serializers
 from datetime import datetime as dt
 from datetime import date
 from datetime import timedelta as td
+from django.db.models import Sum
 
 from rest_framework.serializers import ValidationError as VE
 
@@ -16,19 +17,16 @@ class CitySerializer(serializers.ModelSerializer):
         fields = ('id', 'name')
 
 
+
+
 class FreightRatesSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField('get_city_name')
+
+    def get_city_name(self, obj):
+        return obj.city.name
     class Meta:
         model = FreightRates
-        fields = ['POL', 'minimal_weight', 'price']
-
-
-class CityFreightSerializer(serializers.ModelSerializer):
-    POLs = FreightRatesSerializer(many=True)
-
-    class Meta:
-        model = City
-        fields = ['id', 'name', 'POLs']
-
+        fields = '__all__'
 
 class StateSerializer(serializers.ModelSerializer):
     cities = CitySerializer(many=True)
@@ -64,7 +62,7 @@ class ShipToSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ShipAddresses
-        fields = ['id', 'state', 'city', 'street', 'contact_person', 'phone', 'ship_target', 'company_id']
+        fields = ['id', 'state', 'city', 'street', 'contact_person', 'phone', 'company_id']
 
 
 class ShipAddressesUpdateSerializer(serializers.ModelSerializer):
@@ -73,12 +71,13 @@ class ShipAddressesUpdateSerializer(serializers.ModelSerializer):
         instance.bld = validated_data.get('bld', instance.bld)
         instance.street = validated_data.get('street', instance.street)
         instance.active = validated_data.get('active', True)
-        instance.ship_target = validated_data.get('ship_target', instance.ship_target)
         instance.phone = validated_data.get('phone', instance.phone)
         instance.contact_person = validated_data.get('contact_person', instance.contact_person)
-        instance.company = validated_data.get('company', instance.company)
-        instance.city = validated_data.get('city', instance.city)
-
+        if validated_data.get('company', instance.company) != instance.company:
+            instance.company = CompanyDetails.objects.get(id=validated_data['company'])
+        if validated_data.get('city', instance.city) != instance.city:
+            instance.city = City.objects.get(id=validated_data['city'])
+        instance.transport_type = validated_data.get('transport_type', instance.transport_type)
         instance.save()
         return instance
 
@@ -90,10 +89,14 @@ class ShipAddressesUpdateSerializer(serializers.ModelSerializer):
 class ShipAddressesSerializer(serializers.ModelSerializer):
     city = serializers.SerializerMethodField('get_city')
 
-    def create(self, validated_data):
+    def get_or_create(self, validated_data):
         validated_data['city'] = City.objects.get(id=validated_data['city'])
         validated_data['company'] = CompanyDetails.objects.get(id=validated_data['company'])
-        return ShipAddresses.objects.create(**validated_data)
+
+        obj, _ = ShipAddresses.objects.get_or_create(**validated_data)
+        obj.active = True
+        obj.save()
+        return obj
 
     def get_city(self, obj):
         return f'{obj.city}'
@@ -103,7 +106,7 @@ class ShipAddressesSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ShipAddresses
-        fields = ['id', 'ship_target', 'contact_person', 'phone', 'city', 'street', 'bld', 'company']
+        fields = ['id', 'contact_person', 'phone', 'city', 'street', 'bld', 'company']
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -270,15 +273,84 @@ class GetStockItemsSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+"""______________________Блок сериализаторов для фиесации стоимости фрахта___________________________________________"""
+
+class FreightRateSetSerializer(serializers.ModelSerializer):
+
+
+
+
+    class Meta:
+        model = FreightRatesSet
+        fields = '__all__'
+
+
+
 """_______________________Блок сериализаторов для работы с заказами_______________________________-"""
 
 
+class OrderedItemSerializer(serializers.ModelSerializer):
+    def create_or_update(self, data):
+        obj, _ = OrderedItems.objects.update_or_create(bags=data['bags'],
+                                                       amount=data['amount'],
+                                                       item=data['item'],
+                                                       order=data['order'])
+
+    class Meta:
+        model = OrderedItems
+        fields = '__all__'
+
+class OrderedItemsDetails(serializers.ModelSerializer):
+    english_name = serializers.SerializerMethodField('get_english_name')
+    scientific_name = serializers.SerializerMethodField('get_scientific_name')
+    russian_name = serializers.SerializerMethodField('get_russian_name')
+    quantity = serializers.SerializerMethodField('get_quantity')
+    amount = serializers.SerializerMethodField('get_amount')
+
+    def get_english_name(self, obj):
+        if not obj.item.english_name:
+            return obj.item.item.english_name
+        return obj.item.english_name
+
+    def get_scientific_name(self, obj):
+        if not obj.item.scientific_name:
+            return obj.item.item.scientific_name
+        return obj.item.scientific_name
+
+    def get_russian_name(self, obj):
+        if not obj.item.russian_name:
+            return obj.item.item.russian_name
+        return obj.item.russian_name
+
+    def get_quantity(self, obj):
+        return obj.item.quantity_per_bag
+
+    def get_amount(self, obj):
+        return obj.amount * obj.item.stock_list.currency_rate
+    class Meta:
+        model = OrderedItems
+        # fields = '__all__'
+        fields = ['item', 'english_name', 'scientific_name', 'russian_name', 'quantity', 'bags', 'amount']
+
+
+
 class OrderSerializer(serializers.ModelSerializer):
+    ordered_items = serializers.SerializerMethodField('get_ordered_items')
+    ordered_items_amount = serializers.SerializerMethodField('get_amount')
+
+    def get_amount(self, obj):
+        amount = OrderedItems.objects.filter(order=obj.id).aggregate(Sum('amount'))
+        return amount['amount__sum'] * obj.stock_list.currency_rate
+
+    def get_ordered_items(self, obj):
+        obj = OrderedItems.objects.select_related('order__stock_list', 'item__item').filter(order=obj.id)
+        return OrderedItemsDetails(obj, many=True).data
+
     def get_or_create(self, data):
         items = data.pop('items')
         data['shipment_date'] = data['stock_list'].shipment_date
         order, _ = Order.objects.get_or_create(**data)
-        return order, items
+        return order, items, _
 
     def update(self, instance, validated_data):
         instance.user = validated_data.get('order', instance.user)
@@ -296,17 +368,7 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class OrderedItemSerializer(serializers.ModelSerializer):
-    def create_or_update(self, data):
-        print(data['bags'])
-        obj, _ = OrderedItems.objects.update_or_create(bags=data['bags'],
-                                                       amount=data['amount'],
-                                                       item=data['item'],
-                                                       order=data['order'])
 
-    class Meta:
-        model = OrderedItems
-        fields = '__all__'
 
 
 """______________________Блок сериализаторов для работы со сток листами_____________________________________-"""

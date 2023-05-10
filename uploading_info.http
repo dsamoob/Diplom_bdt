@@ -1,7 +1,7 @@
 
 
 
-GET http://127.0.0.1:8000/api/v1/order/3/
+GET http://127.0.0.1:8000/api/v1/order/7/
 Authorization: Token user2cnee
 Content-Type: application/json
 
@@ -11,37 +11,35 @@ POST http://127.0.0.1:8000/api/v1/order/1/
 Authorization: Token user2cnee
 Content-Type: application/json
 
-{ "stock_list": 1,
+{ "stock_list": 13,
   "ship_to":2,
   "items": [
-    {"id":  3,
+    {"id":  7793,
     "bags": 1},
-    {"id":  4,
+    {"id":  7831,
     "bags":  1},
-    {"id": 151,
+    {"id": 7773,
     "bags": 1},
-    {"id": 154,
+    {"id": 7830,
     "bags": 1}
   ]
 }
 ###___обновление заказа
-PUT http://127.0.0.1:8000/api/v1/order/3/
+PUT http://127.0.0.1:8000/api/v1/order/7/
 Authorization: Token user1staff
 Content-Type: application/json
 
 {
-  "shipment_date":  "2023-05-01",
+  "shipment_date":  "2023-06-04",
   "status":  "confirmed"
 }
 ###___изменение заказа заказчиком___
-PUT http://127.0.0.1:8000/api/v1/order/3/
+PUT http://127.0.0.1:8000/api/v1/order/12/
 Authorization: Token user2cnee
 Content-Type: application/json
 
 {
-  "ship_to":  3,
-  "items": 12
-
+  "ship_to":  3
 }
 ###_____________________Stock/Items/<pk>/_______________________________________________________________________________
 ### Запрос позиций из стока покупателем
@@ -166,48 +164,46 @@ Content-Type: application/json
 ###____________________________Stock/<PK> finished_____________________________________________________________________
 
 ###___ShipperAddresses___
-PUT http://127.0.0.1:8000/api/v1/user/details/shipto/1/
-Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+PUT http://127.0.0.1:8000/api/v1/user/details/shipto/4/
+Authorization: Token user3shpr
 Content-Type: application/json
 
 {
   "city": 5,
-  "company": 6,
-  "street": "pulyanкi",
-  "bld": 313,
-  "contact_person": "ivцan",
-  "phone": "23534у645"
+  "company": 3,
+  "street": "Magomed",
+  "bld": 123523,
+  "contact_person": "Stanislav",
+  "phone": "999-444-111",
+  "transport_type": "Air"
 }
 ###
 
 GET http://127.0.0.1:8000/api/v1/user/details/shipto/
-Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+Authorization: Token user3shpr
 Content-Type: application/json
 
 ###
-DELETE http://127.0.0.1:8000/api/v1/user/details/shipto/1/
-Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+DELETE http://127.0.0.1:8000/api/v1/user/details/shipto/6/
+Authorization: Token user3shpr
 Content-Type: application/json
 
 ###
 POST http://127.0.0.1:8000/api/v1/user/details/shipto/
-Authorization: Token user4shpr
+Authorization: Token user3shpr
 Content-Type: application/json
 
 {
   "city": 2,
-  "company": 1,
+  "company": 3,
   "street": "pulyanкi",
   "bld": 313,
   "contact_person": "ivцan",
   "phone": "23534у645",
-  "ship_target": "ship_to"
+  "transport_type": "Air"
 
 }
-###
-GET http://127.0.0.1:8000/api/v1/user/details/shipto/
-Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
-Content-Type: application/json
+
 
 
 
