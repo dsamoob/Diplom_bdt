@@ -12,7 +12,7 @@ Authorization: Token user2cnee
 Content-Type: application/json
 
 { "stock_list": 13,
-  "ship_to":2,
+  "ship_to":3,
   "items": [
     {"id":  7793,
     "bags": 1},
