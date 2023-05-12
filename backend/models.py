@@ -237,7 +237,8 @@ class Order(models.Model):
         ('Confirmed', 'Принято'),
         ('Updated', 'Обновлено'),
         ('In process', 'В обработке'),
-        ('Shipped', 'Отправлено')
+        ('Shipped', 'Отправлено'),
+        ('Deleted', 'Удалено')
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     ship_to = models.ForeignKey(ShipAddresses, on_delete=models.CASCADE)

@@ -1,13 +1,13 @@
 
 
 
-GET http://127.0.0.1:8000/api/v1/order/7/
+GET http://127.0.0.1:8000/api/v1/order/13/
 Authorization: Token user2cnee
 Content-Type: application/json
 
 
 ###___Размещение заказа покупателем
-POST http://127.0.0.1:8000/api/v1/order/1/
+POST http://127.0.0.1:8000/api/v1/order/
 Authorization: Token user2cnee
 Content-Type: application/json
 
@@ -34,13 +34,18 @@ Content-Type: application/json
   "status":  "confirmed"
 }
 ###___изменение заказа заказчиком___
-PUT http://127.0.0.1:8000/api/v1/order/12/
+PUT http://127.0.0.1:8000/api/v1/order/18/
 Authorization: Token user2cnee
 Content-Type: application/json
 
 {
-  "ship_to":  3
+  "ship_to":  2
 }
+###___Удаление заказа___
+DELETE http://127.0.0.1:8000/api/v1/order/22/
+Authorization: Token user2cnee
+Content-Type: application/json
+
 ###_____________________Stock/Items/<pk>/_______________________________________________________________________________
 ### Запрос позиций из стока покупателем
 GET http://127.0.0.1:8000/api/v1/stock/items/13/

@@ -7,12 +7,12 @@ from django.db.models import Q, Min
 import xlrd
 from rest_condition import And, Or
 from decimal import Decimal
-from datetime import date
+from datetime import date, timedelta
 import urllib.request
 
 from rest_framework.generics import ListAPIView
 
-from backend.permissions import IsStaff, IsCneeShpr, IsAuthenticated, IsShprorCnShpr
+from backend.permissions import IsStaff, IsCneeShpr, IsAuthenticated, IsShprorCnShpr, IsCnee
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from django.http import JsonResponse
@@ -34,7 +34,8 @@ import ssl
 
 
 class Orders(APIView):
-    permission_classes = [Or(And(IsCneeShpr, ), And(IsAuthenticated, IsStaff), )]
+    # permission_classes = [Or(And(IsCneeShpr, ), And(IsAuthenticated, IsStaff), )]
+    permission_classes = (IsCnee,)
 
     def get(self, request, pk=None, *args, **kwargs):
         if not pk:
@@ -48,62 +49,70 @@ class Orders(APIView):
 
     def post(self, request, *args, **kwargs):
         # проверка на актуальность сток листа
-        if not StockList.objects.filter(id=request.data['stock_list'], status='offered'):
+
+
+        obj = StockList.objects.filter(id=request.data['stock_list'], status='offered').first()
+        if not obj:
             return JsonResponse({'stocklist': 'not found'})
+        # if not StockList.objects.filter(id=request.data['stock_list'], status='offered'):
+        #     return JsonResponse({'stocklist': 'not found'})
         # проверка входящего джсона
         if not {'items', 'ship_to', 'stock_list'}.issubset(request.data) or not isinstance(request.data['items'], list):
             return JsonResponse({'error': 'incorrect fields'})
-        request.data['stock_list'] = StockList.objects.get(id=request.data['stock_list'])
+        request.data['stock_list'] = obj
         request.data['user'] = request.user
         # проверка адреса получателя на принадлежность пользователю
+
         ship_to = ShipAddresses.objects.select_related('company').filter(id=request.data['ship_to'],
                                                                          company__user=request.user).first()
-
         if not ship_to:
             return JsonResponse({'error': f'incorrect ship_to id'})
-        # проверка количества заказанного
-        if sum([i['bags'] for i in request.data['items']]) % request.data['stock_list'].bags_quantity != 0:
-            return JsonResponse({'error': 'incorrect bags quantity'})
+
+
         request.data['ship_to'] = ship_to
-        # проверка наличия позиций и их количества в наличии
-        for item in request.data['items']:
-            item_obj = StockListItem.objects.select_related('stock_list').filter(id=item['id'], status=True,
-                                                                                 stock_list=request.data['stock_list'].id).first()
-            if not item_obj:
-                return JsonResponse({'error': f'incorrect item id: {item["id"]}'})
-            if (item_obj.quantity_per_bag * item['bags']) + item_obj.ordered > item_obj.limit != 0:
-                return JsonResponse({'status': f'not enough on stock for item  with id: {item["id"]}'})
-        # создание/получение самого заказа
         serializer = OrderSerializer(request.data)
         order, items, status = serializer.get_or_create(data=request.data)
-
         if not status:
             return JsonResponse({'error': f'the order with id {order.id} already created'})
+
+        # проверка наличия позиций и их количества в наличии
+        check = {str(i['id']): i['bags'] for i in items} # создание словаря
+        item_obj = StockListItem.objects.select_related('stock_list').filter(id__in=check.keys()) # qs по словарю
+        #  Проверка количества пакетов на их вместимость
+        if sum(check.values()) % request.data['stock_list'].bags_quantity != 0:
+            return JsonResponse({'error': 'incorrect bags quantity'})
+        for item in item_obj:
+            if str(item.id) not in check.keys():
+                return JsonResponse({'error': f'incorrect item id: {item.id}'})
+            if (item.quantity_per_bag * check[str(item.id)]) + item.ordered > item.limit != 0:
+                return JsonResponse({'status': f'not enough on stock for item  with id: {item["id"]}'})
+            if not item.status:
+                return JsonResponse({'error': f'item with id {item.id} not available'})
+
         # создание позиций заказа
-        for item in items:
-            item_obj = StockListItem.objects.filter(id=item['id'], status=True).first()
-            if not item_obj:
-                return JsonResponse({'status': f'not available item {item["id"]}'})
-            item_obj.ordered = item_obj.ordered + (item_obj.quantity_per_bag * item['bags'])
-            item_obj.save()
-            data = {'bags': item['bags'],
-                    'amount': item_obj.sale_price * (item['bags'] * item_obj.quantity_per_bag),
-                    'item': item_obj,
+        for item in item_obj:
+            bags = check[str(item.id)]
+            item.ordered = item.ordered + (item.quantity_per_bag * bags)
+            item.save()
+            data = {'bags': bags,
+                    'amount': item.sale_price * (bags * item.quantity_per_bag),
+                    'item': item,
                     'order': order}
             serializer = OrderedItemSerializer(data=data)
             serializer.is_valid()
             serializer.create_or_update(data=data)
         # фиксация стоимости фрахта
-        frt_obj = Order.objects.select_related('ship_to').filter(id=order.id, ship_to__transport_type='Air').first()
-        if frt_obj:
-            fr_rt_obj = FreightRates.objects.filter(city_id=frt_obj.ship_to.city_id).order_by('price').first()
+        if order.ship_to.transport_type == 'Air':
+            fr_rt_obj = FreightRates.objects.filter(city_id=order.ship_to.city_id).order_by('price').first()
             fr_data = {'price': fr_rt_obj.price,
                        'minimal_weight': fr_rt_obj.minimal_weight,
-                       'order': frt_obj.id,
-                       'ship_to': frt_obj.ship_to.id}
-            serializer = FreightRateSetSerializer(data=fr_data)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
+                       'order': order,
+                       'ship_to': order.ship_to}
+            frt, _ = FreightRatesSet.objects.get_or_create(**fr_data)
+            print(frt, _)
+            # serializer = FreightRateSetSerializer(data=fr_data)
+            # serializer.is_valid(raise_exception=True)
+            # serializer.save()
         return JsonResponse({'status': 'successful',
                              'order_id': order.id})
 
@@ -137,18 +146,48 @@ class Orders(APIView):
             serializer = OrderSerializer(request.data)
             serializer.update(validated_data=request.data, instance=instance)
 
-            frt_obj = Order.objects.select_related('ship_to').filter(id=request.data['ship_to'].id, ship_to__transport_type='Air').first()
-
+            frt_obj = Order.objects.select_related('ship_to').filter(id=pk, ship_to__transport_type='Air').first()
             if frt_obj:
                 fr_rt_obj = FreightRates.objects.filter(city_id=frt_obj.ship_to.city_id).order_by('price').first()
                 fr_data = {'price': fr_rt_obj.price,
                            'minimal_weight': fr_rt_obj.minimal_weight,
-                           'order': frt_obj.id,
-                           'ship_to': frt_obj.ship_to.id}
-                serializer = FreightRateSetSerializer(data=fr_data)
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
+                           'order': frt_obj,
+                           'ship_to': frt_obj.ship_to}
+                serializer = FreightRateSetSerializer(fr_data)
+                serializer.get_or_create(data=fr_data)
             return JsonResponse({'ok': 'finished'})
+
+    def delete(self, request, pk=None, *args, **kwargs):
+        if not pk:
+            return JsonResponse({'error': 'No pk'})
+        if request.user.type in ['cnee', 'shpr/cnee']:
+            #  проверка принадлежности заказа и возможности его удаления (уже отправленные заказы нельзя удалить)
+            obj = OrderedItems.objects.select_related('order',
+                                                      'item',
+                                                      'order__stock_list').filter(order=pk,
+                                                                                  order__user=request.user,
+                                                                                  ).exclude(order__status__in=['Shipped',
+                                                                                            'Deleted'])
+            if not obj:
+                return JsonResponse({'error': 'incorrect pk'})
+            # проверка временных рамок для удаления (не позднее чем за 2 дня до даты поставки)
+            if (obj[1].order.stock_list.shipment_date - timedelta(days=2)) < date.today():
+                return JsonResponse({'error': 'can delete not more than 2 days before shipment date'})
+            for element in obj:
+                element.item.ordered = element.item.ordered - (element.bags * element.item.quantity_per_bag)
+                element.order.status = 'Deleted'
+                element.item.save()
+                element.order.save()
+
+
+
+
+
+
+            return JsonResponse({'cnee': 'finish'})
+
+
+        return JsonResponse({'end': 'delete'})
 
 
 class GetStockItems(APIView):

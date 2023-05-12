@@ -17,8 +17,6 @@ class CitySerializer(serializers.ModelSerializer):
         fields = ('id', 'name')
 
 
-
-
 class FreightRatesSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField('get_city_name')
 
@@ -27,6 +25,7 @@ class FreightRatesSerializer(serializers.ModelSerializer):
     class Meta:
         model = FreightRates
         fields = '__all__'
+
 
 class StateSerializer(serializers.ModelSerializer):
     cities = CitySerializer(many=True)
@@ -277,7 +276,9 @@ class GetStockItemsSerializer(serializers.ModelSerializer):
 
 class FreightRateSetSerializer(serializers.ModelSerializer):
 
-
+    def get_or_create(self, data):
+        obj, _ = FreightRatesSet.objects.get_or_create(**data)
+        return obj
 
 
     class Meta:
@@ -333,17 +334,21 @@ class OrderedItemsDetails(serializers.ModelSerializer):
         fields = ['item', 'english_name', 'scientific_name', 'russian_name', 'quantity', 'bags', 'amount']
 
 
-
 class OrderSerializer(serializers.ModelSerializer):
     ordered_items = serializers.SerializerMethodField('get_ordered_items')
     ordered_items_amount = serializers.SerializerMethodField('get_amount')
 
     def get_amount(self, obj):
         amount = OrderedItems.objects.filter(order=obj.id).aggregate(Sum('amount'))
+        print(amount)
+        if not amount['amount__sum']:
+            return None
         return amount['amount__sum'] * obj.stock_list.currency_rate
 
     def get_ordered_items(self, obj):
         obj = OrderedItems.objects.select_related('order__stock_list', 'item__item').filter(order=obj.id)
+        if not obj:
+            return None
         return OrderedItemsDetails(obj, many=True).data
 
     def get_or_create(self, data):

@@ -31,6 +31,7 @@ urlpatterns = [
     path('stock/upload/<pk>/', StockItemsUpload.as_view(), name='stock_items_upload'),
     path('stock/items/<pk>/', GetStockItems.as_view(), name='get_stock_items'),
     # path('stock/items/update/<pk>/')
+    path('order/', Orders.as_view(), name='ordering'),
     path('order/<pk>/', Orders.as_view(), name='ordering'),
 
 
