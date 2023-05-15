@@ -5,13 +5,33 @@ from django_rest_passwordreset.signals import reset_password_token_created
 
 from backend.models import ConfirmEmailToken, User, CompanyDetails
 
-# new_user_registered = Signal(providing_args=['user_id'],)
-#
-# new_order = Signal(providing_args=['user_id'],)
+
+
 new_user_registered = Signal()
-new_order = Signal()
+order_status = Signal()
 new_stock_list = Signal()
 stock_list_update = Signal()
+
+
+@receiver(order_status)
+def order_status_signal(receiver, order, text, **kwargs):
+    """
+    отправяем письмо при изменении статуса заказа
+    """
+    # send an e-mail to the user
+
+    msg = EmailMultiAlternatives(
+        # title:
+        f"Обновление статуса заказа # {order}",
+        # message:
+        f'{text}',
+        # from:
+        settings.EMAIL_HOST_USER,
+        # to:
+        [receiver.email]
+    )
+    msg.send()
+
 
 @receiver(stock_list_update)
 def stock_list_update_signal(obj, request_data, user=None, **kwargs):
@@ -98,25 +118,6 @@ def new_user_registered_signal(user_id, **kwargs):
     msg.send()
 
 
-@receiver(new_order)
-def new_order_signal(user_id, **kwargs):
-    """
-    отправяем письмо при изменении статуса заказа
-    """
-    # send an e-mail to the user
-    user = User.objects.get(id=user_id)
-
-    msg = EmailMultiAlternatives(
-        # title:
-        f"Обновление статуса заказа",
-        # message:
-        'Заказ сформирован',
-        # from:
-        settings.EMAIL_HOST_USER,
-        # to:
-        [user.email]
-    )
-    msg.send()
 
 
 

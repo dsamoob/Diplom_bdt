@@ -306,7 +306,29 @@ class OrderedItemsDetails(serializers.ModelSerializer):
     scientific_name = serializers.SerializerMethodField('get_scientific_name')
     russian_name = serializers.SerializerMethodField('get_russian_name')
     quantity = serializers.SerializerMethodField('get_quantity')
-    amount = serializers.SerializerMethodField('get_amount')
+    sale_price = serializers.SerializerMethodField('get_sale_price')
+    offer_price = serializers.SerializerMethodField('get_offer_price')
+    sale_amount = serializers.SerializerMethodField('get_sale_amount')
+    offer_amount = serializers.SerializerMethodField('get_offer_amount')
+
+    def __init__(self, *args, **kwargs):
+        request = kwargs.get('context', {}).get('request')
+        fields = None
+        if request == 'cnee':
+            fields = ['id', 'english_name', 'scientific_name', 'russian_name', 'bags', 'quantity', 'sale_price', 'sale_amount']
+        super(OrderedItemsDetails, self).__init__(*args, **kwargs)
+        if request == 'staff':
+            fields = ['id', 'english_name', 'scientific_name',
+                      'russian_name', 'bags',  'quantity', 'offer_price',  'offer_amount', 'sale_price',  'sale_amount']
+        if request == 'shpr':
+            fields = ['id', 'english_name', 'scientific_name',
+                      'russian_name', 'bags',  'quantity', 'offer_price',  'offer_amount']
+
+        if fields is not None:
+            allowed = set(fields)
+            existing = set(self.fields)
+            for field_name in existing - allowed:
+                self.fields.pop(field_name)
 
     def get_english_name(self, obj):
         if not obj.item.english_name:
@@ -326,30 +348,69 @@ class OrderedItemsDetails(serializers.ModelSerializer):
     def get_quantity(self, obj):
         return obj.item.quantity_per_bag
 
-    def get_amount(self, obj):
+    def get_offer_price(self, obj):
+        return obj.item.offer_price * obj.item.stock_list.currency_rate
+
+    def get_sale_price(self, obj):
+        return obj.item.sale_price * obj.item.stock_list.currency_rate
+
+    def get_sale_amount(self, obj):
         return obj.amount * obj.item.stock_list.currency_rate
+
+    def get_offer_amount(self, obj):
+        return (obj.item.offer_price * (obj.bags * obj.item.quantity_per_bag)) * obj.item.stock_list.currency_rate
+
+
+
     class Meta:
         model = OrderedItems
-        # fields = '__all__'
-        fields = ['item', 'english_name', 'scientific_name', 'russian_name', 'quantity', 'bags', 'amount']
+        fields = '__all__'
+
 
 
 class OrderSerializer(serializers.ModelSerializer):
     ordered_items = serializers.SerializerMethodField('get_ordered_items')
-    ordered_items_amount = serializers.SerializerMethodField('get_amount')
+    total_offer_amount = serializers.SerializerMethodField('get_offer_amount')
+    total_sale_amount = serializers.SerializerMethodField('get_sale_amount')
 
-    def get_amount(self, obj):
+    def __init__(self, *args, **kwargs):
+        request = kwargs.get('context', {}).get('request')
+        print(request)
+        fields = None
+        if request == 'cnee':
+            fields = ['id', 'ordered_items', 'total_sale_amount', 'created_at', 'updated_at', 'shipment_date',
+            'status', 'user', 'ship_to']
+        super(OrderSerializer, self).__init__(*args, **kwargs)
+        if request in ['staff']:
+            fields = ['id', 'ordered_items', 'total_offer_amount', 'total_sale_amount', 'created_at', 'updated_at', 'shipment_date',
+                      'status', 'user', 'ship_to']
+        if request == 'shpr':
+            fields = ['id', 'ordered_items', 'total_offer_amount', 'created_at', 'updated_at',
+                      'shipment_date',
+                      'status', 'user', 'ship_to']
+        if fields is not None:
+            allowed = set(fields)
+            existing = set(self.fields)
+            for field_name in existing - allowed:
+                self.fields.pop(field_name)
+
+    def get_sale_amount(self, obj):
         amount = OrderedItems.objects.filter(order=obj.id).aggregate(Sum('amount'))
-        print(amount)
         if not amount['amount__sum']:
             return None
         return amount['amount__sum'] * obj.stock_list.currency_rate
 
+    def get_offer_amount(self, obj):
+        items_obj = OrderedItems.objects.select_related('order__stock_list', 'item__item').filter(order=obj.id)
+        sum = 0
+        for item in items_obj:
+            sum += (item.item.offer_price * (item.item.quantity_per_bag * item.bags)) * item.item.stock_list.currency_rate
+        return sum
     def get_ordered_items(self, obj):
         obj = OrderedItems.objects.select_related('order__stock_list', 'item__item').filter(order=obj.id)
         if not obj:
             return None
-        return OrderedItemsDetails(obj, many=True).data
+        return OrderedItemsDetails(obj, many=True, context={'request': self.context.get('request')}).data
 
     def get_or_create(self, data):
         items = data.pop('items')
@@ -527,7 +588,7 @@ class StockUpdateStaffSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
-        # serializers.raise_errors_on_nested_writes('updated', self, validated_data)
+
 
         instance.orders_till_date = validated_data.get('orders_till_date', instance.orders_till_date)
         instance.shipment_date = validated_data.get('shipment_date', instance.shipment_date)
