@@ -8,7 +8,7 @@ from django_rest_passwordreset.views import reset_password_request_token, reset_
 
 from backend.views import UploadStateCity, RegisterAccount, LoginAccount, AccountDetails,\
     ConfirmAccount, SetFreightRates, SetStockTypes, UserCompanies, UserShipTo, StockItemsUpload,\
-    Orders, Stock, GetStockItems
+    Orders, Stock, GetStockItems, OrderList
 app_name = 'diplom'
 
 
@@ -33,6 +33,7 @@ urlpatterns = [
     # path('stock/items/update/<pk>/')
     path('order/', Orders.as_view(), name='ordering'),
     path('order/<pk>/', Orders.as_view(), name='ordering'),
+    path('orderlist/<pk>/', OrderList.as_view(), name='get orders'),
 
 
     ]

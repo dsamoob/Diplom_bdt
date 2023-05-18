@@ -22,6 +22,7 @@ class FreightRatesSerializer(serializers.ModelSerializer):
 
     def get_city_name(self, obj):
         return obj.city.name
+
     class Meta:
         model = FreightRates
         fields = '__all__'
@@ -165,7 +166,6 @@ class CompanyDetailsUpdateSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-
 class UserSerializer(serializers.ModelSerializer):
     user_companies = CompanyDetailsSerializer(read_only=True, many=True)
 
@@ -173,6 +173,8 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'first_name', 'last_name', 'email', 'phone', 'user_companies', 'username', 'type')
         read_only_fields = ('id',)
+
+
 
 
 """_______________________Блок сериализаторов для отображения сток листов____________________________________________"""
@@ -272,7 +274,8 @@ class GetStockItemsSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-"""______________________Блок сериализаторов для фиесации стоимости фрахта___________________________________________"""
+"""______________________Блок сериализаторов для фиксации стоимости фрахта___________________________________________"""
+
 
 class FreightRateSetSerializer(serializers.ModelSerializer):
 
@@ -280,26 +283,25 @@ class FreightRateSetSerializer(serializers.ModelSerializer):
         obj, _ = FreightRatesSet.objects.get_or_create(**data)
         return obj
 
-
     class Meta:
         model = FreightRatesSet
         fields = '__all__'
 
 
-
 """_______________________Блок сериализаторов для работы с заказами_______________________________-"""
 
 
-class OrderedItemSerializer(serializers.ModelSerializer):
-    def create_or_update(self, data):
-        obj, _ = OrderedItems.objects.update_or_create(bags=data['bags'],
-                                                       amount=data['amount'],
-                                                       item=data['item'],
-                                                       order=data['order'])
+# class OrderedItemSerializer(serializers.ModelSerializer):
+#     def create_or_update(self, data):
+#         obj, _ = OrderedItems.objects.update_or_create(bags=data['bags'],
+#                                                        amount=data['amount'],
+#                                                        item=data['item'],
+#                                                        order=data['order'])
+#
+#     class Meta:
+#         model = OrderedItems
+#         fields = '__all__'
 
-    class Meta:
-        model = OrderedItems
-        fields = '__all__'
 
 class OrderedItemsDetails(serializers.ModelSerializer):
     english_name = serializers.SerializerMethodField('get_english_name')
@@ -315,14 +317,15 @@ class OrderedItemsDetails(serializers.ModelSerializer):
         request = kwargs.get('context', {}).get('request')
         fields = None
         if request == 'cnee':
-            fields = ['id', 'english_name', 'scientific_name', 'russian_name', 'bags', 'quantity', 'sale_price', 'sale_amount']
+            fields = ['id', 'english_name', 'scientific_name', 'russian_name', 'bags', 'quantity', 'sale_price',
+                      'sale_amount']
         super(OrderedItemsDetails, self).__init__(*args, **kwargs)
         if request == 'staff':
             fields = ['id', 'english_name', 'scientific_name',
-                      'russian_name', 'bags',  'quantity', 'offer_price',  'offer_amount', 'sale_price',  'sale_amount']
+                      'russian_name', 'bags', 'quantity', 'offer_price', 'offer_amount', 'sale_price', 'sale_amount']
         if request == 'shpr':
             fields = ['id', 'english_name', 'scientific_name',
-                      'russian_name', 'bags',  'quantity', 'offer_price',  'offer_amount']
+                      'russian_name', 'bags', 'quantity', 'offer_price', 'offer_amount']
 
         if fields is not None:
             allowed = set(fields)
@@ -360,12 +363,9 @@ class OrderedItemsDetails(serializers.ModelSerializer):
     def get_offer_amount(self, obj):
         return (obj.item.offer_price * (obj.bags * obj.item.quantity_per_bag)) * obj.item.stock_list.currency_rate
 
-
-
     class Meta:
         model = OrderedItems
         fields = '__all__'
-
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -379,10 +379,11 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = None
         if request == 'cnee':
             fields = ['id', 'ordered_items', 'total_sale_amount', 'created_at', 'updated_at', 'shipment_date',
-            'status', 'user', 'ship_to']
+                      'status', 'user', 'ship_to']
         super(OrderSerializer, self).__init__(*args, **kwargs)
         if request in ['staff']:
-            fields = ['id', 'ordered_items', 'total_offer_amount', 'total_sale_amount', 'created_at', 'updated_at', 'shipment_date',
+            fields = ['id', 'ordered_items', 'total_offer_amount', 'total_sale_amount', 'created_at', 'updated_at',
+                      'shipment_date',
                       'status', 'user', 'ship_to']
         if request == 'shpr':
             fields = ['id', 'ordered_items', 'total_offer_amount', 'created_at', 'updated_at',
@@ -404,8 +405,10 @@ class OrderSerializer(serializers.ModelSerializer):
         items_obj = OrderedItems.objects.select_related('order__stock_list', 'item__item').filter(order=obj.id)
         sum = 0
         for item in items_obj:
-            sum += (item.item.offer_price * (item.item.quantity_per_bag * item.bags)) * item.item.stock_list.currency_rate
+            sum += (item.item.offer_price * (
+                        item.item.quantity_per_bag * item.bags)) * item.item.stock_list.currency_rate
         return sum
+
     def get_ordered_items(self, obj):
         obj = OrderedItems.objects.select_related('order__stock_list', 'item__item').filter(order=obj.id)
         if not obj:
@@ -434,8 +437,16 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class GetStock(serializers.ModelSerializer):
+    orders = serializers.SerializerMethodField('get_orders')
 
-
+    def get_orders(self, obj):
+        obj = Order.objects.filter(stock_list=obj)
+        serializer = OrderSerializer(obj, many=True, context={'request': self.context.get('request')})
+        return serializer.data
+    class Meta:
+        model = StockList
+        fields = '__all__'
 
 """______________________Блок сериализаторов для работы со сток листами_____________________________________-"""
 
@@ -588,7 +599,6 @@ class StockUpdateStaffSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
-
 
         instance.orders_till_date = validated_data.get('orders_till_date', instance.orders_till_date)
         instance.shipment_date = validated_data.get('shipment_date', instance.shipment_date)
