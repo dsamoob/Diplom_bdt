@@ -224,7 +224,7 @@ class StockListItem(models.Model):
     quantity_per_bag = models.IntegerField(verbose_name='Кол-во в пакете')
     ordered = models.IntegerField(verbose_name='Заказано', default=0)
     limit = models.IntegerField(verbose_name='Кол-во в наличии', blank=True)
-    status = models.BooleanField(default=True)
+    status = models.BooleanField(default=False)
     english_name = models.CharField(max_length=100, verbose_name='Местное название', blank=True)
     scientific_name = models.CharField(max_length=100, verbose_name='Научное название', blank=True)
     russian_name = models.CharField(max_length=100, verbose_name='Русское название', blank=True)

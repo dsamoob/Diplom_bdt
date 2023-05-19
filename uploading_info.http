@@ -109,9 +109,21 @@ GET http://127.0.0.1:8000/api/v1/stock/items/1/
 Authorization: Token user1staff
 Content-Type: application/json
 
+###______________________Stock/Item/Update/<pk>__________________________
+# измернение позиций в сток листе
+# работник может менять цену продажную
+PUT http://127.0.0.1:8000/api/v1/stock/items/update/5718/
+Authorization: Token user1staff
+Content-Type: application/json
+
+{
+  "russian_name": "Тиляпия",
+  "sale_price" : 1.18
+}
+
 ###______________________Stock/upload/<pk>/_____________________________________________________________________________
 ### Загрузка позиций к стоку поставщиком
-POST http://127.0.0.1:8000/api/v1/stock/upload/1/
+POST http://127.0.0.1:8000/api/v1/stock/upload/3/
 Authorization: Token user3shpr
 Content-Type: application/json
 
@@ -127,7 +139,7 @@ Content-Type: application/json
 "url": "https://github.com/dsamoob/Diplom_bdt/blob/main/Singapore_stock.xls?raw=true"
 }
 ### Обновление позиций в стоке пользователем staff (российское название и цена продажи)
-POST http://127.0.0.1:8000/api/v1/stock/upload/2/
+POST http://127.0.0.1:8000/api/v1/stock/upload/3/
 Authorization: Token user1staff
 Content-Type: application/json
 
@@ -135,7 +147,7 @@ Content-Type: application/json
 "url": "https://github.com/dsamoob/Diplom_bdt/blob/main/Singapore_Stock_sale_prices.xls?raw=true"
 }
 ###___Обновление позиций в стоке пользователем staff (российское название и цена продажи)
-POST http://127.0.0.1:8000/api/v1/stock/upload/1/
+POST http://127.0.0.1:8000/api/v1/stock/upload/3/
 Authorization: Token user1staff
 Content-Type: application/json
 
@@ -218,7 +230,7 @@ Content-Type: application/json
 
 }
 ###___Изменение сток листа пользователем staff
-PUT http://127.0.0.1:8000/api/v1/stock/2/
+PUT http://127.0.0.1:8000/api/v1/stock/3/
 Authorization: Token user1staff
 Content-Type: application/json
 

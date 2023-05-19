@@ -272,6 +272,19 @@ class GetStockItems(APIView):
             return Response(GetStockItemsSerializer(obj, context={'request': request.user.type}).data)
 
 
+class StockItemUpdate(APIView):
+    permission_classes = [Or(And(IsShprorCnShpr, ), And(IsStaff), )]
+
+    def put(self, request, pk=None, *args, **kwargs):
+        if request.user.type == 'staff':
+            obj = get_object_or_404(StockListItem.objects.select_related('item', 'stock_list'),
+                                    id=pk,
+                                    stock_list__status__in=['offered', 'closed', 'uploaded', 'updated'])
+            serializer = StockListItemSerializer(request.data)
+            serializer.update(instance=obj, validated_data=request.data)
+            return JsonResponse({'status': 'finished _staff_'})
+
+
 class StockItemsUpload(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -298,8 +311,8 @@ class StockItemsUpload(APIView):
             if not stock_obj:
                 return JsonResponse({'error': f'stock with id {pk} already closed or offered or not belongs to user'})
             # проверка ранее загруженных позиций, если есть хоть одна позиция в статусе
-            # True то любые изменения через view items
-            if StockListItem.objects.filter(stock_list=pk, status=True).first():
+            # True то любые изменения через view StockItemsUpdate
+            if StockListItem.objects.filter(stock_list=pk, ).first():
                 return JsonResponse({'error': 'items for this stock list already uploaded'})
 
             ssl._create_default_https_context = ssl._create_unverified_context
@@ -321,75 +334,88 @@ class StockItemsUpload(APIView):
                 return JsonResponse({'error': 'incorrect fields in file'})
             # проход по файлу
             result_list = {}  # создание словаря ошибок
-            bulk_create_list = []  # булк список для создания позиций
+            items_dict = {}  # создание словаря позиций
+            items_list = []  # создание списка всех кодов
+            stock_item_bulk = []  # создание списка булк для загрузки в бд
             for rownum in range(1, sheet.nrows):
                 row = sheet.row_values(rownum)
                 # получение/ создание позиции
-
                 if not all(row[i] for i in range(6)):  # проверка заполненности строки
-                    result_list[row[0]] = 'not_added'
+                    result_list[f'row_{rownum}'] = {'code': row[0],
+                                                    'english_name': row[1],
+                                                    'scientific_name': row[2],
+                                                    'size': row[3],
+                                                    'offer_price': row[4],
+                                                    'limit': row[5]}
+                    # остановка процесса в случае если много пустых ячеек - нужно для длинных листов
+                    if len(result_list) > 20:
+                        break
                     continue
-
-                # поиск ранее созданной позиции
-                item = Item.objects.filter(code=row[0],
-                                           english_name=row[1],
-                                           scientific_name=row[2],
-                                           size=row[3],
-                                           company=stock_obj.company).first()
-                # создание позиции, если она не была найдена
-                if not item:
-                    info = {'company': stock_obj.company,
-                            'code': row[0],
-                            'english_name': row[1],
-                            'scientific_name': row[2],
-                            'size': row[3]}
-                    item = ItemUploadingSerializer(info)
-                    item = item.get_or_create(data=info)
-                # получение создание связки позиция/сток
-                instance = StockListItem.objects.filter(stock_list=stock_obj.id,
-                                                        item=item.id).first()
-
-                if not instance:
-                    if row[6] == '':
-                        limit = 0
-                    else:
-                        limit = row[6]
-                    data_stock_item = {'item': item,
-                                       'stock_list': stock_obj,
-                                       'offer_price': Decimal(row[4]).quantize(Decimal('1.00')),
-                                       'quantity_per_bag': row[5] / stock_obj.bags_quantity,
-                                       'limit': limit}
-                    bulk_create_list.append(StockListItem(**data_stock_item))
-                    # stock_item = StockListItemSerializer(data_stock_item)
-                    # stock_item.get_or_create(data=data_stock_item)
-                    continue
-
-                stock_item = StockListItemSerializer(instance)
-                stock_item.update(instance=instance, validated_data=row)
-            StockListItem.objects.bulk_create(bulk_create_list)
+                # получение лимитов, пустые ячейки из excel выводятся в виде пустой строки
+                if row[6] == '':
+                    limit = 0
+                else:
+                    limit = row[6]
+                # добавление позиции в словарь позиций
+                items_dict[row[0]] = {'english_name': row[1],
+                                      'scientific_name': row[2],
+                                      'size': row[3],
+                                      'company': stock_obj.company,
+                                      'offer_price': Decimal(row[4]).quantize(Decimal('1.00')),
+                                      'quantity_per_bag': row[5] / stock_obj.bags_quantity,
+                                      'limit': limit}
+                # добавление кода позиции в список позиций (для предотвращения дублей)
+                items_list.append(row[0])
+            # получения позиций из бд по сформированному списку
+            items_qs = Item.objects.select_related('company').filter(code__in=items_dict.keys(),
+                                                                     company__user=request.user)
+            # формирования списка кодов из queryset
+            qs_codes = [str(i.code) for i in items_qs]
+            # создание списка Item, которых нет в базе
+            difference = set(qs_codes) ^ set(items_list)
+            #  добавление новых позиций если они есть
+            if len(difference) != 0:
+                bulk_list_items = []
+                for element in difference:
+                    bulk_list_items.append(Item(code=element,
+                                                scientific_name=items_dict[element]['scientific_name'],
+                                                english_name=items_dict[element]['english_name'],
+                                                size=items_dict[element]['size'],
+                                                company=stock_obj.company,
+                                                ))
+                result = Item.objects.bulk_create(bulk_list_items)
+                # проход по новым позициям для добавления их в список булк для создания StokListItem
+                for element in result:
+                    bulk = StockListItem(offer_price=items_dict[element.code]['offer_price'],
+                                         quantity_per_bag=items_dict[element.code]['quantity_per_bag'],
+                                         limit=items_dict[element.code]['limit'],
+                                         item=element,
+                                         stock_list=stock_obj)
+                    stock_item_bulk.append(bulk)
+            # проход по найденным позициям в бд для добавления их в список булк для создания StokListItem
+            for element in items_qs:
+                bulk = StockListItem(offer_price=items_dict[element.code]['offer_price'],
+                                     quantity_per_bag=items_dict[element.code]['quantity_per_bag'],
+                                     limit=items_dict[element.code]['limit'],
+                                     item=element,
+                                     stock_list=stock_obj)
+                stock_item_bulk.append(bulk)
+            # Создание через булк всех позиций
+            StockListItem.objects.bulk_create(stock_item_bulk)
             # удаление временного файла
             os.remove(file_name)
             # уведомление staff о полной загрузке сток листа
-
-            if not result_list:
-                stock_list_update.send(sender=self.__class__,
-                                       user=User.objects.filter(type='staff').first(),
-                                       obj=stock_obj,
-                                       request_data={'status': 'items uploaded'})
-                return JsonResponse({'stock list status': 'all items successfully uploaded'})
-            # ответ если не все было загружено
+            stock_list_update.send(sender=self.__class__,
+                                   user=User.objects.filter(type='staff').first(),
+                                   obj=stock_obj,
+                                   request_data={'status': 'items uploaded'})
             return JsonResponse({'status': f'added {stock_obj.id}',
-                                 'items': result_list})
+                                 'errors': result_list})
 
         # загрузка цен и перевода для staff
         elif request.user.type == 'staff':
             # поиск необходимого сток листа
             stock_obj = get_object_or_404(StockList, id=pk, status='uploaded')
-            # stock_obj = StockList.objects.filter(id=pk,
-            #                                      status='uploaded').first()
-            # if not stock_obj:
-            #     return JsonResponse({'error': 'no this stock'})
-
             # создание временного файла
             ssl._create_default_https_context = ssl._create_unverified_context
             file_name = f'stock_list_prices_{date.today()}_{stock_obj.company.id}.xls'
@@ -400,33 +426,58 @@ class StockItemsUpload(APIView):
             if sheet.row_values(0) != ['code', 'russian_name', 'sale_price']:
                 os.remove(file_name)  # удаление временного файла
                 return JsonResponse({'error': 'incorrect fields in file'})
-
-            result_list = {}  # список ошибок
+            # создания словаря с ошибками по группам
+            result_list = {'excel': [], 'db_no_russian_name': [], 'db_no_sale_price': []}  # список ошибок
+            items_dict = {}  # словарь с позициями
+            # проход по загружаемому файлу
             for rownum in range(1, sheet.nrows):
                 row = sheet.row_values(rownum)
-                result = StockListItem.objects.select_related('item').filter(stock_list=pk,
-                                                                             item__code=row[0]).first()
-                # проверка наличия заполненности нужных полей в файле и их нахождения в базе
-                if not row[2] or not row[1] or not row[0] or not result:
-                    if result:
-                        result.status = False
-                        result.save()
-                    result_list[row[0]] = 'not_added'
+                if not all(row[i] for i in range(3)):  # проверка заполненности строки
+                    result_list['excel'].append({f'row_{rownum}': {'code': row[0],
+                                                                   'russian_name': row[1],
+                                                                   'sale_price': row[2]}})
                     continue
-                serializer = StockListItemSerializer(result)
-                serializer.get_or_update(obj=result,
-                                         data={'russian_name': row[1], 'sale_price': row[2]})
+                items_dict[row[0]] = {'russian_name': row[1],
+                                      'sale_price': row[2]}
+            # обновление позиций, которые без перевода
+            items_qs = Item.objects.select_related('company').filter(company=stock_obj.company,
+                                                                     russian_name__in=['', ' '])
+
+            for element in items_qs:
+                russian_name = items_dict.get(f'{element.code}')
+                if not russian_name:
+                    result_list['db_no_russian_name'].append({element.code: {'id': element.id,
+                                                                             'russian_name': element.russian_name}})
+                    continue
+                element.russian_name = items_dict[element.code]['russian_name']
+            Item.objects.bulk_update(items_qs, fields=('russian_name',))
+            stock_items_qs = StockListItem.objects.select_related('item').filter(stock_list=stock_obj,)
+            for element in stock_items_qs:
+                sale_price = items_dict.get(f'{element.item.code}')
+                if not sale_price:
+                    element.status = False
+                    result_list['db_no_sale_price'].append({element.item.code: {'id': element.item.id,
+                                                                                'sale_price': '',
+                                                                                'status': False}})
+                    continue
+                element.sale_price = items_dict[element.item.code]['sale_price']
+                if not element.item.russian_name or element.item.russian_name == ' ':
+                    result_list[element.code] = '123'
+                    element.status = False
+                    continue
+                element.status = True
+            result = StockListItem.objects.bulk_update(stock_items_qs, fields=('sale_price', 'status',))
+
             os.remove(file_name)
-            if not result_list:
-                return JsonResponse({'stock list status': 'all items successfully uploaded'})
-            return JsonResponse(result_list)
+            return JsonResponse({'errors': result_list})
         return JsonResponse({'error': 'no rights'})
 
 
 class Stock(APIView):
     permission_classes = (IsAuthenticated,)
 
-    def get(self, request, pk=None, *args, **kwargs):
+    @staticmethod
+    def get(request, pk=None, *args, **kwargs):
         # получение стоков покупателем: только активные стоки
         if request.user.type == 'cnee':
             obj = StockList.objects.filter(status='offered').all()
@@ -494,8 +545,9 @@ class Stock(APIView):
             return JsonResponse({'error': 'No pk'})
         # обновление сток листа поставщиками.
         if request.user.type in ['shpr', 'shpr/cnee']:
-            instance = StockList.objects.select_related('company', 'stock_type').filter(id=pk,
-                                                                                        company__user=request.user).first()
+            instance = StockList.objects.select_related('company',
+                                                        'stock_type').filter(id=pk,
+                                                                             company__user=request.user).first()
             if not instance:
                 return JsonResponse({'incorrect id': f'{pk}'})
             stock = StockUpdateShprSerializer(context={"request": request}, data=request.data)
