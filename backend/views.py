@@ -284,6 +284,91 @@ class StockItemUpdate(APIView):
             serializer.update(instance=obj, validated_data=request.data)
             return JsonResponse({'status': 'finished _staff_'})
 
+        if request.user.type in ['shpr', 'shpr/cnee']:
+            obj = get_object_or_404(StockListItem.objects.select_related('item',
+                                                                         'stock_list'),
+                                    id=pk,
+                                    stock_list__company__user=request.user,
+                                    stock_list__status__in=['offered', 'closed', 'uploaded', 'updated'])
+            orders = OrderedItems.objects.select_related('order').filter(item=obj)
+            d_o = {}
+            quantity = []
+            bags = []
+            if orders:
+                d_o = {element.order.id: {'email': element.order.user.email,
+                                          'old_price': element.item.sale_price,
+                                          'ordered_bags': element.bags,
+                                          'per_bag': element.item.quantity_per_bag,
+                                          'quantity': element.bags*element.item.quantity_per_bag,
+                                          'amount': element.amount,
+                                          'created_at': element.order.created_at,
+                                          'status': None} for element in orders}
+                earliest = [(key, d_o[key]['created_at'], d_o[key]['ordered_bags']) for key in d_o]
+                quantity = sum([d_o[key]['quantity'] for key in d_o])
+                bags = sum([d_o[key]['ordered_bags'] for key in d_o])
+            info_dict = {'offer_price': obj.offer_price,
+                         'sale_price': obj.sale_price,
+                         'quantity_per_bag': obj.quantity_per_bag,
+                         'limit': obj.limit,
+                         'english_name': obj.english_name,
+                         'scientific_name': obj.scientific_name,
+                         'size': obj.size
+                         }
+            print(obj.limit)
+            if request.data.get('offer_price'):
+                new_price = round(Decimal(request.data['offer_price']), 2)
+                if new_price > info_dict['offer_price']:
+                    obj.sale_price = (new_price + (obj.sale_price - obj.offer_price))
+                obj.offer_price = new_price
+            if request.data.get('english_name'):
+                new_name = request.data['english_name']
+                if new_name != obj.item.english_name:
+                    obj.english_name = new_name
+            if request.data.get('scientific_name'):
+                new_name = request.data['scientific_name']
+                if new_name != obj.item.scientific_name:
+                    obj.scientific_name = new_name
+            if request.data.get('size'):
+                new_name = request.data['size']
+                if new_name != obj.item.size:
+                    obj.size = new_name
+            counting = 0
+            if request.data.get('quantity_per_bag') and request.data.get('limit') and orders:
+                q_p_b, limit = request.data['quantity_per_bag'], request.data['limit']
+                if q_p_b != info_dict['quantity_per_bag'] and limit != info_dict['limit'] and limit < (q_p_b * bags):
+                    counting = int(round(((q_p_b * bags) - limit) / q_p_b, 0))
+                obj.limit = limit
+                obj.quantity_per_bag = q_p_b
+            if request.data.get('quantity_per_bag') and not request.data.get('limit') and orders:
+                q_p_b = request.data['quantity_per_bag']
+                if q_p_b != info_dict['quantity_per_bag'] and obj.limit < (q_p_b * bags):
+                    counting = int(round(((q_p_b * bags) - obj.limit) / q_p_b, 0))
+                obj.quantity_per_bag = q_p_b
+            if request.data.get('limit') and not request.data.get('quantity_per_bag') and orders:
+                limit = request.data['limit']
+                if limit != info_dict['limit'] and limit < (obj.quantity_per_bag * bags):
+                    counting = int(round(((obj.quantity_per_bag * bags) - limit) / obj.quantity_per_bag, 0))
+                obj.limit = limit
+
+            if counting:
+                for element in sorted(earliest, key=lambda x: x[1], reverse=True):
+                    counting -= element[2]
+                    if counting <= 0:
+                        d_o[element[0]]['status'] = 'delete'
+                        break
+                    d_o[element[0]]['status'] = 'delete'
+            for key, value in d_o.items():
+                print(key, value)
+
+
+
+
+
+
+
+            # obj.save()
+            return JsonResponse({'status': 'end for shpr'})
+
 
 class StockItemsUpload(APIView):
     permission_classes = (IsAuthenticated,)
@@ -451,7 +536,7 @@ class StockItemsUpload(APIView):
                     continue
                 element.russian_name = items_dict[element.code]['russian_name']
             Item.objects.bulk_update(items_qs, fields=('russian_name',))
-            stock_items_qs = StockListItem.objects.select_related('item').filter(stock_list=stock_obj,)
+            stock_items_qs = StockListItem.objects.select_related('item').filter(stock_list=stock_obj, )
             for element in stock_items_qs:
                 sale_price = items_dict.get(f'{element.item.code}')
                 if not sale_price:
@@ -819,8 +904,7 @@ class SetFreightRates(APIView):
         """ 
         Предполагается, что файл всегда одного вида, меняется лишь количество строк 
         Всегда происходит поиск совпадений и их обновление. 
-        В перспективе проще сделать сразу загрузку всех городов мира. с сортировкой по странам - упростит код и логику
-         
+        В перспективе проще сделать сразу загрузку всех городов мира. с сортировкой по странам - упростит код и логику   
         """
         for rownum in range(1, sheet.nrows):  # предполагается, что в файле первая строка - заголовок
             row = sheet.row_values(rownum)
