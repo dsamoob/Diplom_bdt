@@ -1,7 +1,7 @@
 
 ###________________Получение списка заказов по сток листу_____________________
 ###___Получения списка заказов поставщиком
-GET http://127.0.0.1:8000/api/v1/orderlist/1/
+GET http://127.0.0.1:8000/api/v1/orderlist/3/
 Authorization: Token user3shpr
 Content-Type: application/json
 
@@ -11,7 +11,7 @@ Authorization: Token user2cnee
 Content-Type: application/json
 
 ###___Получение списка заказов работником
-GET http://127.0.0.1:8000/api/v1/orderlist/2/
+GET http://127.0.0.1:8000/api/v1/orderlist/3/
 Authorization: Token user1staff
 Content-Type: application/json
 ###___Получение списка заказов поставщиком/покупателем
@@ -21,11 +21,11 @@ Content-Type: application/json
 
 
 ###___Получение своего заказа покупателем
-GET http://127.0.0.1:8000/api/v1/order/14/
+GET http://127.0.0.1:8000/api/v1/order/80/
 Authorization: Token user2cnee
 Content-Type: application/json
 ###___Получение своего заказа работником
-GET http://127.0.0.1:8000/api/v1/order/14/
+GET http://127.0.0.1:8000/api/v1/order/80/
 Authorization: Token user1staff
 Content-Type: application/json
 ###___Получение своего заказа поставщикоv
@@ -38,16 +38,16 @@ POST http://127.0.0.1:8000/api/v1/order/
 Authorization: Token user2cnee
 Content-Type: application/json
 
-{ "stock_list": 2,
+{ "stock_list": 3,
   "ship_to":1,
   "items": [
-    {"id":  5718,
+    {"id":  11232,
     "bags": 1},
-    {"id":  5717,
-    "bags":  2},
-    {"id": 5720,
-    "bags": 2},
-    {"id": 5721,
+    {"id":  11238,
+    "bags":  1},
+    {"id": 11241,
+    "bags": 1},
+    {"id": 11243,
     "bags": 1}
   ]
 }
@@ -56,7 +56,7 @@ POST http://127.0.0.1:8000/api/v1/order/
 Authorization: Token user4shpr/cnee
 Content-Type: application/json
 
-{ "stock_list": 1,
+{ "stock_list": 3,
   "ship_to":3,
   "items": [
     {"id":  5189,
@@ -70,7 +70,7 @@ Content-Type: application/json
   ]
 }
 ###___обновление заказа
-PUT http://127.0.0.1:8000/api/v1/order/10/
+PUT http://127.0.0.1:8000/api/v1/order/73/
 Authorization: Token user1staff
 Content-Type: application/json
 
@@ -79,7 +79,7 @@ Content-Type: application/json
   "status":  "confirmed"
 }
 ###___изменение заказа заказчиком___
-PUT http://127.0.0.1:8000/api/v1/order/7/
+PUT http://127.0.0.1:8000/api/v1/order/73/
 Authorization: Token user2cnee
 Content-Type: application/json
 
@@ -87,7 +87,7 @@ Content-Type: application/json
   "ship_to":  4
 }
 ###___Удаление заказа___
-DELETE http://127.0.0.1:8000/api/v1/order/10/
+DELETE http://127.0.0.1:8000/api/v1/order/79/
 Authorization: Token user2cnee
 Content-Type: application/json
 
@@ -130,6 +130,7 @@ Content-Type: application/json
   "english_name": "Тиляпия",
   "size": "ML",
   "offer_price" : 1.31,
+  "quantity_per_bag": 85,
   "limit": 100
 
 }

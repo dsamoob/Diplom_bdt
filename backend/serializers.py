@@ -334,34 +334,34 @@ class OrderedItemsDetails(serializers.ModelSerializer):
                 self.fields.pop(field_name)
 
     def get_english_name(self, obj):
-        if not obj.item.english_name:
-            return obj.item.item.english_name
-        return obj.item.english_name
+        if not obj.stock_list_item.english_name:
+            return obj.stock_list_item.item.english_name
+        return obj.stock_list_item.english_name
 
     def get_scientific_name(self, obj):
-        if not obj.item.scientific_name:
-            return obj.item.item.scientific_name
-        return obj.item.scientific_name
+        if not obj.stock_list_item.scientific_name:
+            return obj.stock_list_item.item.scientific_name
+        return obj.stock_list_item.scientific_name
 
     def get_russian_name(self, obj):
-        if not obj.item.russian_name:
-            return obj.item.item.russian_name
-        return obj.item.russian_name
+        if not obj.stock_list_item.russian_name:
+            return obj.stock_list_item.item.russian_name
+        return obj.stock_list_item.russian_name
 
     def get_quantity(self, obj):
-        return obj.item.quantity_per_bag
+        return obj.stock_list_item.quantity_per_bag
 
     def get_offer_price(self, obj):
-        return obj.item.offer_price * obj.item.stock_list.currency_rate
+        return obj.stock_list_item.offer_price * obj.stock_list_item.stock_list.currency_rate
 
     def get_sale_price(self, obj):
-        return obj.item.sale_price * obj.item.stock_list.currency_rate
+        return obj.stock_list_item.sale_price * obj.stock_list_item.stock_list.currency_rate
 
     def get_sale_amount(self, obj):
-        return obj.amount * obj.item.stock_list.currency_rate
+        return (obj.stock_list_item.quantity_per_bag* obj.bags) * obj.stock_list_item.stock_list.currency_rate
 
     def get_offer_amount(self, obj):
-        return (obj.item.offer_price * (obj.bags * obj.item.quantity_per_bag)) * obj.item.stock_list.currency_rate
+        return (obj.stock_list_item.offer_price * (obj.bags * obj.stock_list_item.quantity_per_bag)) * obj.stock_list_item.stock_list.currency_rate
 
     class Meta:
         model = OrderedItems
@@ -396,21 +396,24 @@ class OrderSerializer(serializers.ModelSerializer):
                 self.fields.pop(field_name)
 
     def get_sale_amount(self, obj):
-        amount = OrderedItems.objects.filter(order=obj.id).aggregate(Sum('amount'))
-        if not amount['amount__sum']:
+        items = OrderedItems.objects.select_related('stock_list_item').filter(order=obj.id,)
+        amount = 0
+        for element in items:
+            amount += element.stock_list_item.sale_price*(element.bags * element.stock_list_item.quantity_per_bag)
+        if not amount:
             return None
-        return amount['amount__sum'] * obj.stock_list.currency_rate
+        return amount * obj.stock_list.currency_rate
 
     def get_offer_amount(self, obj):
-        items_obj = OrderedItems.objects.select_related('order__stock_list', 'item__item').filter(order=obj.id)
+        items_obj = OrderedItems.objects.select_related('order__stock_list', 'stock_list_item__item').filter(order=obj.id)
         sum = 0
         for item in items_obj:
-            sum += (item.item.offer_price * (
-                        item.item.quantity_per_bag * item.bags)) * item.item.stock_list.currency_rate
+            sum += (item.stock_list_item.offer_price * (
+                        item.stock_list_item.quantity_per_bag * item.bags)) * item.stock_list_item.stock_list.currency_rate
         return sum
 
     def get_ordered_items(self, obj):
-        obj = OrderedItems.objects.select_related('order__stock_list', 'item__item').filter(order=obj.id)
+        obj = OrderedItems.objects.select_related('order__stock_list', 'stock_list_item__item').filter(order=obj.id)
         if not obj:
             return None
         return OrderedItemsDetails(obj, many=True, context={'request': self.context.get('request')}).data
@@ -418,6 +421,7 @@ class OrderSerializer(serializers.ModelSerializer):
     def get_or_create(self, data):
         items = data.pop('items')
         data['shipment_date'] = data['stock_list'].shipment_date
+
         order, _ = Order.objects.get_or_create(**data)
         return order, items, _
 
@@ -685,3 +689,9 @@ class StockListItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = StockListItem
         fields = '__all__'
+
+
+class ItemsCheckSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    bags = serializers.IntegerField()
+

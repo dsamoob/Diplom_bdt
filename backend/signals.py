@@ -11,6 +11,22 @@ new_user_registered = Signal()
 order_status = Signal()
 new_stock_list = Signal()
 stock_list_update = Signal()
+changes_message = Signal()
+
+@receiver(changes_message)
+def changes_message_signal(receiver, order, text, **kwargs):
+    msg = EmailMultiAlternatives(
+        # title:
+        f"Обновление статуса заказа # {order}",
+        # message:
+        f'{text}',
+        # from:
+        settings.EMAIL_HOST_USER,
+        # to:
+        [receiver]
+    )
+    msg.send()
+
 
 
 @receiver(order_status)

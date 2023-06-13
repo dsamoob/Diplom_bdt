@@ -2,7 +2,7 @@ import os
 
 from django.contrib.auth.password_validation import validate_password
 
-from django.db.models import Q, Min
+from django.db.models import Q, Min, Prefetch
 import xlrd
 from rest_condition import And, Or
 from decimal import Decimal
@@ -23,9 +23,9 @@ from backend.serializers import StateSerializer, UserSerializer, StockTypeSerial
     ShipAddressesSerializer, ItemUploadingSerializer, StockListCreateSerializer, \
     StockListItemSerializer, OrderSerializer, GetStockCneeSerializer, \
     GetStockShprSerizlier, GetStockStaffSerializator, StockUpdateShprSerializer, StockUpdateStaffSerializer, \
-    GetStockItemsSerializer, FreightRatesSerializer, FreightRateSetSerializer, GetStock
+    GetStockItemsSerializer, FreightRatesSerializer, FreightRateSetSerializer, GetStock, ItemsCheckSerializer
 
-from backend.signals import new_user_registered, new_stock_list, stock_list_update, order_status
+from backend.signals import new_user_registered, new_stock_list, stock_list_update, order_status, changes_message
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from django.core.validators import URLValidator
@@ -82,6 +82,7 @@ class Orders(APIView):
         # проверка входящего джсона
         if not {'items', 'ship_to', 'stock_list'}.issubset(request.data) or not isinstance(request.data['items'], list):
             return JsonResponse({'error': 'incorrect fields'})
+        ItemsCheckSerializer(data=request.data['items'], many=True).is_valid(raise_exception=True)
         request.data['stock_list'] = obj
         request.data['user'] = request.user
         # проверка адреса получателя на принадлежность пользователю
@@ -89,43 +90,50 @@ class Orders(APIView):
                                                     id=request.data['ship_to'],
                                                     company__user=request.user)
         # создание списка ошибок
+        check = {i['id']: i['bags'] for i in request.data['items']}  # создание словаря
+        # получение из бд заказанных позиций
+        item_obj = {m: list(m.ordereditems_set.all()) for m in
+                    get_list_or_404(
+                        StockListItem.objects.prefetch_related(Prefetch('ordereditems_set',
+                                                                        queryset=OrderedItems.objects.filter(status=True))),
+                        id__in=check.keys(),
+                        stock_list=obj,
+                        status=True)}
+        # создание списка ошибок
         errors_list = []
-        check = {str(i['id']): i['bags'] for i in request.data['items']}  # создание словаря
-        item_obj = get_list_or_404(StockListItem.objects.select_related('stock_list'),
-                                   id__in=check.keys(),
-                                   status=True, stock_list=obj)
-        list_item_obj = [i.id for i in item_obj]
-
+        # проверка на достаточность пакетов в заказе
         if sum(check.values()) % request.data['stock_list'].bags_quantity != 0:
             errors_list.append({'error': 'incorrect bags quantity'})
-        # проверка заказываемых позиций на доступность в стоке
+        # проверка заказываемых позиций на доступность в стоке P.S. можно изменить перебор на сравнение множеств
+        id_s = [i.id for i in item_obj.keys()]
         for item in check.keys():
-            if int(item) not in list_item_obj:
+            if item not in id_s:
                 errors_list.append({'error': f'incorrect item id: {item}'})
-        for item in item_obj:
-            # проверка на достаточность лимита
-            if (item.quantity_per_bag * check[str(item.id)]) + item.ordered > item.limit != 0:
-                errors_list.append({'status': f'not enough on stock for item  with id: {item}'})
-        serializer = OrderSerializer(request.data)
-        order, items, status = serializer.get_or_create(data=request.data)
-        if not status:
-            return JsonResponse({'error': f'the order with id {order.id} already created'})
-        if errors_list:
-            order.delete()
-            return JsonResponse({'errors': errors_list})
+        # проверка достаточности количеств у поставщика
+        for key, value in item_obj.items():
+            if sum(map(lambda x: x.bags * x.stock_list_item.quantity_per_bag, value)) > key.limit != 0:
+                errors_list.append({'status': f'not enough on stock for item  with id: {key.id}'})
+        # проверка на наличие сделанного ранее заказа
+        if Order.objects.filter(status__in=['Received', 'Confirmed', 'Updated', 'In process', ]).first():
+            errors_list.append({'error': 'this order already in'})
 
+        if errors_list:
+            return JsonResponse({'errors': errors_list})
+        # создание заказа
+        order = Order.objects.create(user=request.data['user'],
+                                     ship_to=request.data['ship_to'],
+                                     stock_list=obj,
+                                     status='Received',
+                                     shipment_date=obj.shipment_date)
         # создание позиций заказа
         bulk_list_create = []
         for item in item_obj:
             bags = check[str(item.id)]
-            item.ordered = item.ordered + (item.quantity_per_bag * bags)
             bulk_list_create.append(OrderedItems(bags=bags,
-                                                 amount=item.sale_price * (bags * item.quantity_per_bag),
-                                                 item=item,
+                                                 stock_list_item=item,
                                                  order=order))
         # Булки для добавления и обновления
         OrderedItems.objects.bulk_create(bulk_list_create)
-        StockListItem.objects.bulk_update(item_obj, fields=['ordered', ])
         # фиксация стоимости фрахта
         if order.ship_to.transport_type == 'Air':
             fr_rt_obj = FreightRates.objects.filter(city_id=order.ship_to.city_id).order_by('price').first()
@@ -148,7 +156,6 @@ class Orders(APIView):
             return JsonResponse({'error': 'No pk'})
         # пользователь группы staff может только менять статус заказа и дату доставки
         if request.user.type == 'staff':
-            print(1)
             if not {'shipment_date', 'status'}.issubset(request.data):
                 return JsonResponse({'error': 'incorrect data'})
             try:
@@ -178,7 +185,6 @@ class Orders(APIView):
             request.data['status'] = 'Updated'
             serializer = OrderSerializer(request.data)
             serializer.update(validated_data=request.data, instance=instance)
-
             frt_obj = Order.objects.select_related('ship_to').filter(id=pk, ship_to__transport_type='Air').first()
             if frt_obj:
                 fr_rt_obj = FreightRates.objects.filter(city_id=frt_obj.ship_to.city_id).order_by('price').first()
@@ -199,23 +205,21 @@ class Orders(APIView):
             return JsonResponse({'error': 'No pk'})
         if request.user.type in ['cnee', 'shpr/cnee']:
             #  проверка принадлежности заказа и возможности его удаления (уже отправленные заказы нельзя удалить)
-            obj = OrderedItems.objects. \
-                select_related('order',
-                               'item',
-                               'order__stock_list'). \
-                filter(order=pk,
-                       order__user=request.user, ). \
-                exclude(order__status__in=['Shipped', 'Deleted'])
-            if not obj:
-                return JsonResponse({'error': 'incorrect pk'})
+            obj = get_list_or_404(OrderedItems.objects.select_related('order', 'stock_list_item', 'order__stock_list'),
+                                  order=pk,
+                                  order__user=request.user)
+            if obj[1].order.status == "Deleted":
+                return JsonResponse({'error': f'order {obj[0].order.id} is already deleted'})
             # проверка временных рамок для удаления (не позднее чем за 2 дня до даты поставки)
             if (obj[1].order.stock_list.shipment_date - timedelta(days=2)) < date.today():
                 return JsonResponse({'error': 'can delete not more than 2 days before shipment date'})
-            for element in obj:
-                element.item.ordered = element.item.ordered - (element.bags * element.item.quantity_per_bag)
+            for element in obj:  # use Bulk update
                 element.order.status = 'Deleted'
-                element.item.save()
+                element.stock_list_item.save()
+                element.status = False
+                element.save()
                 element.order.save()
+
         order_status.send(sender=self.__class__,
                           receiver=User.objects.filter(type='staff').first(),
                           order=pk,
@@ -295,14 +299,14 @@ class StockItemUpdate(APIView):
             quantity = []
             bags = []
             if orders:
-                d_o = {element.order.id: {'email': element.order.user.email,
-                                          'old_price': element.item.sale_price,
-                                          'ordered_bags': element.bags,
-                                          'per_bag': element.item.quantity_per_bag,
-                                          'quantity': element.bags*element.item.quantity_per_bag,
-                                          'amount': element.amount,
-                                          'created_at': element.order.created_at,
-                                          'status': None} for element in orders}
+                d_o = {element: {'email': element.order.user.email,
+                                 'old_price': element.item.sale_price,
+                                 'ordered_bags': element.bags,
+                                 'per_bag': element.item.quantity_per_bag,
+                                 'quantity': element.bags * element.item.quantity_per_bag,
+                                 'amount': element.amount,
+                                 'created_at': element.order.created_at,
+                                 'status': None} for element in orders}
                 earliest = [(key, d_o[key]['created_at'], d_o[key]['ordered_bags']) for key in d_o]
                 quantity = sum([d_o[key]['quantity'] for key in d_o])
                 bags = sum([d_o[key]['ordered_bags'] for key in d_o])
@@ -310,46 +314,57 @@ class StockItemUpdate(APIView):
                          'sale_price': obj.sale_price,
                          'quantity_per_bag': obj.quantity_per_bag,
                          'limit': obj.limit,
-                         'english_name': obj.english_name,
-                         'scientific_name': obj.scientific_name,
-                         'size': obj.size
+                         'english_name': obj.item.english_name,
+                         'scientific_name': obj.item.scientific_name,
+                         'size': obj.item.size
                          }
-            print(obj.limit)
+
+            updated_info = {}
             if request.data.get('offer_price'):
                 new_price = round(Decimal(request.data['offer_price']), 2)
                 if new_price > info_dict['offer_price']:
+                    updated_info['sale_price'] = f'{info_dict["sale_price"]} -> {new_price}'
                     obj.sale_price = (new_price + (obj.sale_price - obj.offer_price))
+
                 obj.offer_price = new_price
             if request.data.get('english_name'):
                 new_name = request.data['english_name']
-                if new_name != obj.item.english_name:
+                if new_name != obj.item.english_name and new_name != obj.english_name:
+                    updated_info['english_name'] = f'{info_dict["english_name"]} -> {new_name}'
                     obj.english_name = new_name
             if request.data.get('scientific_name'):
                 new_name = request.data['scientific_name']
-                if new_name != obj.item.scientific_name:
+                if new_name != obj.item.scientific_name and new_name != obj.scientific_name:
+                    updated_info['scientific_name'] = f'{info_dict["scientific_name"]} -> {new_name}'
                     obj.scientific_name = new_name
             if request.data.get('size'):
-                new_name = request.data['size']
-                if new_name != obj.item.size:
-                    obj.size = new_name
+                new_size = request.data['size']
+                if new_size != obj.item.size and new_size != obj.size:
+                    updated_info['size'] = f'{info_dict["size"]} -> {new_size}'
+                    obj.size = new_size
+
             counting = 0
             if request.data.get('quantity_per_bag') and request.data.get('limit') and orders:
                 q_p_b, limit = request.data['quantity_per_bag'], request.data['limit']
                 if q_p_b != info_dict['quantity_per_bag'] and limit != info_dict['limit'] and limit < (q_p_b * bags):
                     counting = int(round(((q_p_b * bags) - limit) / q_p_b, 0))
+
+                updated_info['quantity_per_bag'] = f'{info_dict["quantity_per_bag"]} -> {q_p_b}'
                 obj.limit = limit
                 obj.quantity_per_bag = q_p_b
             if request.data.get('quantity_per_bag') and not request.data.get('limit') and orders:
                 q_p_b = request.data['quantity_per_bag']
                 if q_p_b != info_dict['quantity_per_bag'] and obj.limit < (q_p_b * bags):
                     counting = int(round(((q_p_b * bags) - obj.limit) / q_p_b, 0))
+
+                updated_info['quantity_per_bag'] = f'{info_dict["quantity_per_bag"]} -> {q_p_b}'
                 obj.quantity_per_bag = q_p_b
             if request.data.get('limit') and not request.data.get('quantity_per_bag') and orders:
                 limit = request.data['limit']
                 if limit != info_dict['limit'] and limit < (obj.quantity_per_bag * bags):
                     counting = int(round(((obj.quantity_per_bag * bags) - limit) / obj.quantity_per_bag, 0))
                 obj.limit = limit
-
+            print(counting)
             if counting:
                 for element in sorted(earliest, key=lambda x: x[1], reverse=True):
                     counting -= element[2]
@@ -357,16 +372,20 @@ class StockItemUpdate(APIView):
                         d_o[element[0]]['status'] = 'delete'
                         break
                     d_o[element[0]]['status'] = 'delete'
-            for key, value in d_o.items():
-                print(key, value)
+            print(info_dict['sale_price'])
+            if orders:
+                if updated_info:
+                    print(updated_info)
+                for key, value in d_o.items():
+                    if value['status'] == 'delete':
+                        continue
+                        # changes_message.send(sender=self.__class__,
+                        #                      receiver=value['email'],
+                        #                      order=key.order.id,
+                        #                      text=f'Позиция {obj.id, obj.english_name, obj.scientific_name},'
+                        #                           f' удалена, пожалуйста дозакажите {value["ordered_bags"]}'
+                        #                           f' до {obj.stock_list.orders_till_date}')
 
-
-
-
-
-
-
-            # obj.save()
             return JsonResponse({'status': 'end for shpr'})
 
 

@@ -222,7 +222,6 @@ class StockListItem(models.Model):
     offer_price = models.DecimalField(max_digits=7, decimal_places=2, verbose_name='Цена закупка')
     sale_price = models.DecimalField(max_digits=7, decimal_places=2, verbose_name='Цена продажа', blank=True, default=0)
     quantity_per_bag = models.IntegerField(verbose_name='Кол-во в пакете')
-    ordered = models.IntegerField(verbose_name='Заказано', default=0)
     limit = models.IntegerField(verbose_name='Кол-во в наличии', blank=True)
     status = models.BooleanField(default=False)
     english_name = models.CharField(max_length=100, verbose_name='Местное название', blank=True)
@@ -251,9 +250,9 @@ class Order(models.Model):
 
 class OrderedItems(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
-    item = models.ForeignKey(StockListItem, on_delete=models.CASCADE)
+    stock_list_item = models.ForeignKey(StockListItem, on_delete=models.CASCADE)
     bags = models.IntegerField()
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.BooleanField(default=True)
 
 
 class FreightRatesSet(models.Model):
