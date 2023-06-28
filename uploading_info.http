@@ -112,7 +112,7 @@ Content-Type: application/json
 ###______________________Stock/Item/Update/<pk>__________________________
 # измернение позиций в сток листе
 # работник может менять цену продажную
-PUT http://127.0.0.1:8000/api/v1/stock/items/update/5718/
+PUT http://127.0.0.1:8000/api/v1/stock/items/update/11232/
 Authorization: Token user1staff
 Content-Type: application/json
 
@@ -121,7 +121,7 @@ Content-Type: application/json
   "sale_price" : 1.18
 }
 ###
-PUT http://127.0.0.1:8000/api/v1/stock/items/update/11236/
+PUT http://127.0.0.1:8000/api/v1/stock/items/update/11237/
 Authorization: Token user3shpr
 Content-Type: application/json
 
@@ -130,8 +130,8 @@ Content-Type: application/json
   "english_name": "Тиляпия",
   "size": "ML",
   "offer_price" : 1.31,
-  "quantity_per_bag": 85,
-  "limit": 100
+  "quantity_per_bag": 12,
+  "limit": 10
 
 }
 ###     "quantity_per_bag": 75

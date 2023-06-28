@@ -95,7 +95,8 @@ class Orders(APIView):
         item_obj = {m: list(m.ordereditems_set.all()) for m in
                     get_list_or_404(
                         StockListItem.objects.prefetch_related(Prefetch('ordereditems_set',
-                                                                        queryset=OrderedItems.objects.filter(status=True))),
+                                                                        queryset=OrderedItems.objects.filter(
+                                                                            status=True))),
                         id__in=check.keys(),
                         stock_list=obj,
                         status=True)}
@@ -114,7 +115,9 @@ class Orders(APIView):
             if sum(map(lambda x: x.bags * x.stock_list_item.quantity_per_bag, value)) > key.limit != 0:
                 errors_list.append({'status': f'not enough on stock for item  with id: {key.id}'})
         # проверка на наличие сделанного ранее заказа
-        if Order.objects.filter(status__in=['Received', 'Confirmed', 'Updated', 'In process', ]).first():
+        if Order.objects.filter(status__in=['Received', 'Confirmed', 'Updated', 'In process', ],
+                                user=request.user,
+                                stock_list=obj).first():
             errors_list.append({'error': 'this order already in'})
 
         if errors_list:
@@ -128,7 +131,7 @@ class Orders(APIView):
         # создание позиций заказа
         bulk_list_create = []
         for item in item_obj:
-            bags = check[str(item.id)]
+            bags = check[item.id]
             bulk_list_create.append(OrderedItems(bags=bags,
                                                  stock_list_item=item,
                                                  order=order))
@@ -142,7 +145,7 @@ class Orders(APIView):
                        'order': order,
                        'ship_to': order.ship_to}
             frt, _ = FreightRatesSet.objects.get_or_create(**fr_data)
-            print(frt, _)
+
         # order_status.send(sender=self.__class__, receiver=request.user, order=order.id, text=f'Ваш заказ получен')
         # order_status.send(sender=self.__class__,
         #                   receiver=User.objects.filter(type='staff').first(),
@@ -231,7 +234,6 @@ class GetStockItems(APIView):
     permission_classes = (IsAuthenticated,)
 
     # получение позиций из сток листа
-
     @staticmethod
     def get(request, pk=None, *args, **kwargs):
         if not pk:
@@ -289,103 +291,102 @@ class StockItemUpdate(APIView):
             return JsonResponse({'status': 'finished _staff_'})
 
         if request.user.type in ['shpr', 'shpr/cnee']:
+            # если сток лист принадлежит пользователю, если он не deleted или finished, если позиция в стоке
             obj = get_object_or_404(StockListItem.objects.select_related('item',
                                                                          'stock_list'),
                                     id=pk,
                                     stock_list__company__user=request.user,
                                     stock_list__status__in=['offered', 'closed', 'uploaded', 'updated'])
-            orders = OrderedItems.objects.select_related('order').filter(item=obj)
-            d_o = {}
-            quantity = []
-            bags = []
-            if orders:
-                d_o = {element: {'email': element.order.user.email,
-                                 'old_price': element.item.sale_price,
-                                 'ordered_bags': element.bags,
-                                 'per_bag': element.item.quantity_per_bag,
-                                 'quantity': element.bags * element.item.quantity_per_bag,
-                                 'amount': element.amount,
-                                 'created_at': element.order.created_at,
-                                 'status': None} for element in orders}
-                earliest = [(key, d_o[key]['created_at'], d_o[key]['ordered_bags']) for key in d_o]
-                quantity = sum([d_o[key]['quantity'] for key in d_o])
-                bags = sum([d_o[key]['ordered_bags'] for key in d_o])
-            info_dict = {'offer_price': obj.offer_price,
-                         'sale_price': obj.sale_price,
-                         'quantity_per_bag': obj.quantity_per_bag,
-                         'limit': obj.limit,
-                         'english_name': obj.item.english_name,
-                         'scientific_name': obj.item.scientific_name,
-                         'size': obj.item.size
-                         }
+            # получение заказов по позиции из пк
+            orders = OrderedItems.objects.select_related('order').filter(stock_list_item=obj, status=True)
+            orders_list = []  # список заказов с деталями
+            orders_list_for_staff = 'Без заказов'  # исходная переменная для направления информации staff
+            bags = 0  # количество пакетов из заказов
+            if orders:  # заполнение переменных при наличии заказов
+                #  детализация заказов
+                orders_list = [[order, order.order.user.email, order.order.created_at, order.bags] for order in orders]
+                bags = sum([x[3] for x in orders_list])  # суммирования кол-ва пакетов по заказам
+                order_list_for_staff = [order.id for order in orders]
 
-            updated_info = {}
-            if request.data.get('offer_price'):
-                new_price = round(Decimal(request.data['offer_price']), 2)
-                if new_price > info_dict['offer_price']:
-                    updated_info['sale_price'] = f'{info_dict["sale_price"]} -> {new_price}'
-                    obj.sale_price = (new_price + (obj.sale_price - obj.offer_price))
+            updated_info = {}  # словарь изменений
+            # получение изменяемых данных при их наличии
+            new_price = request.data.get('offer_price', obj.offer_price)
+            eng_name = request.data.get('english_name', obj.item.english_name)
+            sci_name = request.data.get('scientific_name', obj.item.scientific_name)
+            size = request.data.get('size', obj.item.size)
+            q_p_b = request.data.get('quantity_per_bag', obj.quantity_per_bag)
+            limit = request.data.get('limit', obj.limit)
 
-                obj.offer_price = new_price
-            if request.data.get('english_name'):
-                new_name = request.data['english_name']
-                if new_name != obj.item.english_name and new_name != obj.english_name:
-                    updated_info['english_name'] = f'{info_dict["english_name"]} -> {new_name}'
-                    obj.english_name = new_name
-            if request.data.get('scientific_name'):
-                new_name = request.data['scientific_name']
-                if new_name != obj.item.scientific_name and new_name != obj.scientific_name:
-                    updated_info['scientific_name'] = f'{info_dict["scientific_name"]} -> {new_name}'
-                    obj.scientific_name = new_name
-            if request.data.get('size'):
-                new_size = request.data['size']
-                if new_size != obj.item.size and new_size != obj.size:
-                    updated_info['size'] = f'{info_dict["size"]} -> {new_size}'
-                    obj.size = new_size
+            # сравнение данных
+            if new_price != obj.offer_price:
+                # изменение цены продажи основываясь на новой цене
+                new_price = (round(Decimal(request.data['offer_price']), 2) + (obj.sale_price - obj.offer_price))
+                updated_info['sale_price'] = f'{obj.sale_price} -> {new_price}'
+                obj.sale_price = new_price
+                obj.offer_price = request.data['offer_price']
+            if eng_name != obj.item.english_name and eng_name != obj.english_name:
+                updated_info['english_name'] = f'{obj.english_name} -> {eng_name}'
+                obj.english_name = eng_name
+            if sci_name != obj.item.scientific_name and sci_name != obj.scientific_name:
+                updated_info['scientific_name'] = f'{obj.scientific_name} -> {sci_name}'
+                obj.scientific_name = sci_name
+            if size != obj.item.size and size != obj.size:
+                updated_info['size'] = f'{obj.size} -> {size}'
+                obj.size = size
 
             counting = 0
-            if request.data.get('quantity_per_bag') and request.data.get('limit') and orders:
-                q_p_b, limit = request.data['quantity_per_bag'], request.data['limit']
-                if q_p_b != info_dict['quantity_per_bag'] and limit != info_dict['limit'] and limit < (q_p_b * bags):
+            #  работа с лимитами и заказанными позициями -> выявление нехватки при уменьшении количества лимита и/или его создании
+            if q_p_b != obj.quantity_per_bag and limit != obj.limit:
+                if limit < (q_p_b * bags):
                     counting = int(round(((q_p_b * bags) - limit) / q_p_b, 0))
-
-                updated_info['quantity_per_bag'] = f'{info_dict["quantity_per_bag"]} -> {q_p_b}'
+                updated_info['quantity_per_bag'] = f'{obj.quantity_per_bag} -> {q_p_b}'
                 obj.limit = limit
                 obj.quantity_per_bag = q_p_b
-            if request.data.get('quantity_per_bag') and not request.data.get('limit') and orders:
-                q_p_b = request.data['quantity_per_bag']
-                if q_p_b != info_dict['quantity_per_bag'] and obj.limit < (q_p_b * bags):
+            elif q_p_b != obj.quantity_per_bag and limit == obj.limit:
+                if q_p_b != obj.quantity_per_bag and obj.limit < (q_p_b * bags):
                     counting = int(round(((q_p_b * bags) - obj.limit) / q_p_b, 0))
-
-                updated_info['quantity_per_bag'] = f'{info_dict["quantity_per_bag"]} -> {q_p_b}'
+                updated_info['quantity_per_bag'] = f'{obj.quantity_per_bag} -> {q_p_b}'
                 obj.quantity_per_bag = q_p_b
-            if request.data.get('limit') and not request.data.get('quantity_per_bag') and orders:
-                limit = request.data['limit']
-                if limit != info_dict['limit'] and limit < (obj.quantity_per_bag * bags):
+            elif q_p_b == obj.quantity_per_bag and limit != obj.limit:
+                if limit != obj.limit and limit < (obj.quantity_per_bag * bags):
                     counting = int(round(((obj.quantity_per_bag * bags) - limit) / obj.quantity_per_bag, 0))
                 obj.limit = limit
-            print(counting)
-            if counting:
-                for element in sorted(earliest, key=lambda x: x[1], reverse=True):
-                    counting -= element[2]
-                    if counting <= 0:
-                        d_o[element[0]]['status'] = 'delete'
-                        break
-                    d_o[element[0]]['status'] = 'delete'
-            print(info_dict['sale_price'])
-            if orders:
-                if updated_info:
-                    print(updated_info)
-                for key, value in d_o.items():
-                    if value['status'] == 'delete':
-                        continue
-                        # changes_message.send(sender=self.__class__,
-                        #                      receiver=value['email'],
-                        #                      order=key.order.id,
-                        #                      text=f'Позиция {obj.id, obj.english_name, obj.scientific_name},'
-                        #                           f' удалена, пожалуйста дозакажите {value["ordered_bags"]}'
-                        #                           f' до {obj.stock_list.orders_till_date}')
 
+            #  отправка сообщения staff
+            if updated_info:
+                obj.status = False
+                # changes_message.send(sender=self.__class__,
+                #                      receiver='e.belov@bdt.ru',
+                #                      order=orders_list_for_staff,
+                #                      text=f'Позиция {obj.id, obj.english_name, obj.scientific_name},'
+                #                           f' {updated_info}'
+                #                           f' до {obj.stock_list.orders_till_date}')
+
+            obj.save()
+            #  проход по заказам и определение темы сообщения для отправки клиентам
+            if orders:
+                list_for_bulk = []
+                for order in sorted(orders_list, key=lambda x: x[2], reverse=True):
+                    # удаление позиций сверх лимита
+                    if counting > 0:
+                        order[0].status = False
+                        list_for_bulk.append(order[0])
+                        order.append(
+                            f'Отсутствует на складе, вам нужно дозаказать другую позицию в количестве {order[3]}')
+                        counting -= order[3]
+
+                    else:
+                        order.append(f'изменена : {updated_info}')
+                # групповое обоновление заказанных позиций
+                OrderedItems.objects.bulk_update(list_for_bulk, fields=('status',))
+                # отправка писем клиентам (для ускорения можно сгруппировать по теме и отправить в скрытых копиях)
+                # for element in orders_list:
+                #     changes_message.send(sender=self.__class__,
+                #                          receiver=element[1],
+                #                          order=element[0].order.id,
+                #                          text=f'Позиция {obj.id, obj.english_name, obj.scientific_name},'
+                #                               f' {element[4]}'
+                #                               f' до {obj.stock_list.orders_till_date}')
             return JsonResponse({'status': 'end for shpr'})
 
 

@@ -178,7 +178,8 @@ class StockList(models.Model):
         ('offered', 'Выставлено'),
         ('updated', 'Обновлено'),
         ('closed', 'Закрыто'),
-        ('finished', 'Завершено')
+        ('finished', 'Завершено'),
+        ('deleted', 'Удаленно')
     )
     TRANSPORT_TYPE = (
         ('Air', 'Самолет'),
@@ -192,7 +193,7 @@ class StockList(models.Model):
     )
     name = models.CharField(max_length=100, blank=True)
     company = models.ForeignKey(CompanyDetails, on_delete=models.CASCADE)
-    orders_till_date = models.DateField(verbose_name='Дата окончания приема зказаов')
+    orders_till_date = models.DateField(verbose_name='Дата окончания приема заказов')
     shipment_date = models.DateField(verbose_name='Дата поставки')
     stock_type = models.ForeignKey(StockType, on_delete=models.CASCADE)
     bags_quantity = models.IntegerField(default=4, verbose_name='Кол-во пакетов в коробке')
