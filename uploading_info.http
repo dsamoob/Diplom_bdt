@@ -6,7 +6,7 @@ Authorization: Token user3shpr
 Content-Type: application/json
 
 ###___Получения списка заказов покупателем
-GET http://127.0.0.1:8000/api/v1/orderlist/1/
+GET http://127.0.0.1:8000/api/v1/orderlist/3/
 Authorization: Token user2cnee
 Content-Type: application/json
 
@@ -15,22 +15,26 @@ GET http://127.0.0.1:8000/api/v1/orderlist/3/
 Authorization: Token user1staff
 Content-Type: application/json
 ###___Получение списка заказов поставщиком/покупателем
-GET http://127.0.0.1:8000/api/v1/orderlist/2/
+GET http://127.0.0.1:8000/api/v1/orderlist/3/
 Authorization: Token user4shpr/cnee
 Content-Type: application/json
 
 
 ###___Получение своего заказа покупателем
-GET http://127.0.0.1:8000/api/v1/order/80/
+GET http://127.0.0.1:8000/api/v1/order/79/
 Authorization: Token user2cnee
 Content-Type: application/json
 ###___Получение своего заказа работником
-GET http://127.0.0.1:8000/api/v1/order/80/
+GET http://127.0.0.1:8000/api/v1/order/83/
 Authorization: Token user1staff
 Content-Type: application/json
-###___Получение своего заказа поставщикоv
-GET http://127.0.0.1:8000/api/v1/order/13/
+###___Получение заказа по ИД поставщикоv
+GET http://127.0.0.1:8000/api/v1/order/80/
 Authorization: Token user3shpr
+Content-Type: application/json
+###___Получения заказа по ИД поставкщиком/покупателем
+GET http://127.0.0.1:8000/api/v1/order/80/
+Authorization: Token user4shpr/cnee
 Content-Type: application/json
 
 ###___Размещение заказа покупателем
@@ -93,32 +97,33 @@ Content-Type: application/json
 
 ###_____________________Stock/Items/<pk>/_______________________________________________________________________________
 ### Запрос позиций из стока покупателем
-GET http://127.0.0.1:8000/api/v1/stock/items/1/
+GET http://127.0.0.1:8000/api/v1/stock/items/3/
 Authorization: Token user2cnee
 Content-Type: application/json
 ### Запрос позиций из стока поставщиком
-GET http://127.0.0.1:8000/api/v1/stock/items/1/
+GET http://127.0.0.1:8000/api/v1/stock/items/3/
 Authorization: Token user3shpr
 Content-Type: application/json
 ### Запрос позиций из стока постуавщиком/клиентом
-GET http://127.0.0.1:8000/api/v1/stock/items/1/
+GET http://127.0.0.1:8000/api/v1/stock/items/3/
 Authorization: Token user4shpr/cnee
 Content-Type: application/json
 ### Запрос позиций из стока staff
-GET http://127.0.0.1:8000/api/v1/stock/items/1/
+GET http://127.0.0.1:8000/api/v1/stock/items/3/
 Authorization: Token user1staff
 Content-Type: application/json
 
 ###______________________Stock/Item/Update/<pk>__________________________
 # измернение позиций в сток листе
 # работник может менять цену продажную
-PUT http://127.0.0.1:8000/api/v1/stock/items/update/11232/
+PUT http://127.0.0.1:8000/api/v1/stock/items/update/11553/
 Authorization: Token user1staff
 Content-Type: application/json
 
 {
   "russian_name": "Тиляпия",
   "sale_price" : 1.18
+
 }
 ###
 PUT http://127.0.0.1:8000/api/v1/stock/items/update/11237/
@@ -134,7 +139,22 @@ Content-Type: application/json
   "limit": 10
 
 }
-###     "quantity_per_bag": 75
+###
+POST http://127.0.0.1:8000/api/v1/stock/items/update/3/
+Authorization: Token user3shpr
+Content-Type: application/json
+
+{
+  "code": "cc-2192",
+  "scientific_name": "Тиляпия",
+  "english_name": "Тиляпия",
+  "size": "ML",
+  "offer_price" : 1.31,
+  "quantity_per_bag": 12,
+  "limit": 10
+
+}
+
 ###______________________Stock/upload/<pk>/_____________________________________________________________________________
 ### Загрузка позиций к стоку поставщиком
 POST http://127.0.0.1:8000/api/v1/stock/items/upload/3/

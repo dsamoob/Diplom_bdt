@@ -1,3 +1,5 @@
+from abc import ABC
+
 from backend.models import User, CompanyDetails, State, \
     City, ShipAddresses, FreightRates, StockType, StockList, Item, StockListItem, Order, OrderedItems, FreightRatesSet
 from rest_framework import serializers
@@ -173,8 +175,6 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'first_name', 'last_name', 'email', 'phone', 'user_companies', 'username', 'type')
         read_only_fields = ('id',)
-
-
 
 
 """_______________________Блок сериализаторов для отображения сток листов____________________________________________"""
@@ -358,10 +358,11 @@ class OrderedItemsDetails(serializers.ModelSerializer):
         return obj.stock_list_item.sale_price * obj.stock_list_item.stock_list.currency_rate
 
     def get_sale_amount(self, obj):
-        return (obj.stock_list_item.quantity_per_bag* obj.bags) * obj.stock_list_item.stock_list.currency_rate
+        return (obj.stock_list_item.quantity_per_bag * obj.bags) * obj.stock_list_item.stock_list.currency_rate
 
     def get_offer_amount(self, obj):
-        return (obj.stock_list_item.offer_price * (obj.bags * obj.stock_list_item.quantity_per_bag)) * obj.stock_list_item.stock_list.currency_rate
+        return (obj.stock_list_item.offer_price * (
+                obj.bags * obj.stock_list_item.quantity_per_bag)) * obj.stock_list_item.stock_list.currency_rate
 
     class Meta:
         model = OrderedItems
@@ -375,7 +376,6 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         request = kwargs.get('context', {}).get('request')
-        print(request)
         fields = None
         if request == 'cnee':
             fields = ['id', 'ordered_items', 'total_sale_amount', 'created_at', 'updated_at', 'shipment_date',
@@ -396,24 +396,30 @@ class OrderSerializer(serializers.ModelSerializer):
                 self.fields.pop(field_name)
 
     def get_sale_amount(self, obj):
-        items = OrderedItems.objects.select_related('stock_list_item').filter(order=obj.id,)
+        items = OrderedItems.objects.select_related('stock_list_item').filter(order=obj.id,
+                                                                              status=True)
         amount = 0
         for element in items:
-            amount += element.stock_list_item.sale_price*(element.bags * element.stock_list_item.quantity_per_bag)
+            amount += element.stock_list_item.sale_price * (element.bags * element.stock_list_item.quantity_per_bag)
         if not amount:
             return None
         return amount * obj.stock_list.currency_rate
 
     def get_offer_amount(self, obj):
-        items_obj = OrderedItems.objects.select_related('order__stock_list', 'stock_list_item__item').filter(order=obj.id)
+        items_obj = OrderedItems.objects.select_related('order__stock_list', 'stock_list_item__item').filter(
+            order=obj.id,
+            status=True)
         sum = 0
         for item in items_obj:
             sum += (item.stock_list_item.offer_price * (
-                        item.stock_list_item.quantity_per_bag * item.bags)) * item.stock_list_item.stock_list.currency_rate
+                    item.stock_list_item.quantity_per_bag * item.bags)) * item.stock_list_item.stock_list.currency_rate
         return sum
 
     def get_ordered_items(self, obj):
-        obj = OrderedItems.objects.select_related('order__stock_list', 'stock_list_item__item').filter(order=obj.id)
+
+        obj = OrderedItems.objects.select_related('order__stock_list', 'stock_list_item__item').filter(order=obj.id,
+                                                                                                       status=True)
+
         if not obj:
             return None
         return OrderedItemsDetails(obj, many=True, context={'request': self.context.get('request')}).data
@@ -445,12 +451,28 @@ class GetStock(serializers.ModelSerializer):
     orders = serializers.SerializerMethodField('get_orders')
 
     def get_orders(self, obj):
-        obj = Order.objects.filter(stock_list=obj)
+        type = self.context.get('request').type
+        user = self.context.get('request')
+        if type == 'shpr':
+            obj = Order.objects.select_related('stock_list',
+                                               'stock_list__company__user').filter(stock_list=obj,
+                                                                                   status__in=['Received',
+                                                                                               'Confirmed',
+                                                                                               'Shipped',
+                                                                                               'In process',
+                                                                                               'Updated'],
+                                                                                   stock_list__company__user=user)
+        # elif self.context.get('request') == 'shpr/cnee':
+        #     if obj.company ==
+        # print(self.context.get('request'),1)
+        # obj = Order.objects.filter(stock_list=obj)
         serializer = OrderSerializer(obj, many=True, context={'request': self.context.get('request')})
         return serializer.data
+
     class Meta:
         model = StockList
         fields = '__all__'
+
 
 """______________________Блок сериализаторов для работы со сток листами_____________________________________-"""
 
@@ -639,59 +661,207 @@ class StockUpdateStaffSerializer(serializers.ModelSerializer):
                         }
 
 
-"""___________________Блок сериализаторов для работы с загрузкой позиций сток листа______________________"""
+"""___________________Иные сериализаторы______________________"""
 
 
-class ItemUploadingSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Item
-        fields = '__all__'
-
-    def get_or_create(self, data):
-        obj, _ = Item.objects.get_or_create(**data)
-        return obj
-
-    def get_or_update(self, obj, data):
-        if obj.item.russian_name:
-            print(obj.item.russian_name)
-
-
-class StockListItemSerializer(serializers.ModelSerializer):
-    def get_or_create(self, data):
-        limit = data.get('limit', False)
-        if limit == '':
-            data['limit'] = 0
-        data['status'] = False
-        obj, _ = StockListItem.objects.get_or_create(**data)
-        return obj
-
+class StockItemUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
-        if validated_data[6] == "":
-            instance.limit = 0
-        if validated_data[6] != "":
-            instance.limit = validated_data[6]
-        if validated_data[5] / instance.stock_list.bags_quantity != instance.quantity_per_bag:
-            instance.quantity_per_bag = validated_data[5] / instance.stock_list.bags_quantity
-        if instance.offer_price != validated_data[4]:
-            instance.offer_price = validated_data[4]
+        instance.sale_price = validated_data.get('sale_price', instance.sale_price)
+        instance.russian_name = validated_data.get('russian_name', instance.russian_name)
+        instance.status = validated_data.get('status', True)
+        if instance.sale_price == 0.00:
+            instance.status = False
         instance.save()
         return instance
 
-    def get_or_update(self, obj, data: dict):
-        if not obj.item.russian_name:
-            item = Item.objects.filter(id=obj.item.id).first()
-            item.russian_name = data['russian_name'].upper()
-            item.save()
-        obj.sale_price = data['sale_price']
-        obj.status = True
-        obj.save()
-
     class Meta:
         model = StockListItem
-        fields = '__all__'
+        fields = ['russian_name', 'sale_price', 'status']
 
 
 class ItemsCheckSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     bags = serializers.IntegerField()
 
+
+class ItemUpdateSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    scientific_name = serializers.CharField()
+    english_name = serializers.CharField()
+    size = serializers.CharField()
+    offer_price = serializers.DecimalField(max_digits=7, decimal_places=2)
+    quantity_per_bag = serializers.IntegerField()
+    limit = serializers.IntegerField()
+
+
+"""________________Блок сериализаторов для получения заказов по сток листу________________"""
+""" сериализатор для получения заказанных пользователем группы Shpr или Shpr/Cnee  """
+
+
+class GetOrderedItemsShpr(serializers.ModelSerializer):
+    code = serializers.SerializerMethodField('get_code')
+    english_name = serializers.SerializerMethodField('get_english_name')
+    scientific_name = serializers.SerializerMethodField('get_scientific_name')
+    price = serializers.SerializerMethodField('get_price')
+    ordered = serializers.SerializerMethodField('get_qty')
+    amount = serializers.SerializerMethodField('get_amount')
+
+    def get_amount(self, obj):
+        return obj.stock_list_item.offer_price * (obj.bags * obj.stock_list_item.quantity_per_bag)
+
+    def get_qty(self, obj):
+        return obj.bags * obj.stock_list_item.quantity_per_bag
+
+    def get_price(self, obj):
+        return obj.stock_list_item.offer_price
+
+    def get_scientific_name(self, obj):
+        if not obj.stock_list_item.scientific_name:
+            return obj.stock_list_item.item.scientific_name
+        return obj.stock_list_item.scientific_name
+
+    def get_english_name(self, obj):
+        if not obj.stock_list_item.english_name:
+            return obj.stock_list_item.item.english_name
+        return obj.stock_list_item.english_name
+
+    def get_code(self, obj):
+        return obj.stock_list_item.item.code
+
+    class Meta:
+        model = OrderedItems
+        exclude = ['status', 'id']
+
+
+class GetOrdersShpr(serializers.ModelSerializer):
+    orders = serializers.SerializerMethodField('get_orders')
+    total_amount = serializers.SerializerMethodField('get_total_amount')
+
+    def get_total_amount(self, obj):
+        orders = OrderedItems.objects.select_related('stock_list_item__item',
+                                                     'order'). \
+            filter(stock_list_item__stock_list=obj, status=True).exclude(order__status='Deleted')
+        return sum(
+            [order.stock_list_item.offer_price * (order.bags * order.stock_list_item.quantity_per_bag) for order in
+             orders])
+
+    def get_orders(self, obj):
+        orders = OrderedItems.objects.select_related('stock_list_item__item',
+                                                     'order'). \
+            filter(stock_list_item__stock_list=obj, status=True).exclude(order__status='Deleted')
+        return GetOrderedItemsShpr(orders, many=True).data,
+
+    class Meta:
+        model = StockList
+        exclude = ('currency_rate',)
+
+
+""" сериализатор для получения заказанных позиций пользователем группы Cnee или Shpr/Cnee """
+
+
+class GetOrderedItemsCnee(serializers.ModelSerializer):
+    qty = serializers.SerializerMethodField('get_qty')
+    price = serializers.SerializerMethodField('get_price')
+    amount = serializers.SerializerMethodField('get_amount')
+    name = serializers.SerializerMethodField('get_name')
+
+    def get_name(self, obj):
+        return f'{obj.stock_list_item.item.english_name}/ ' \
+               f'{obj.stock_list_item.item.scientific_name}/ ' \
+               f'{obj.stock_list_item.item.russian_name}/' \
+               f'{obj.stock_list_item.item.size}'
+
+    def get_amount(self, obj):
+        return obj.stock_list_item.sale_price * (obj.bags * obj.stock_list_item.quantity_per_bag)
+
+    def get_price(self, obj):
+        return obj.stock_list_item.sale_price
+
+    def get_qty(self, obj):
+        return obj.stock_list_item.quantity_per_bag * obj.bags
+
+    class Meta:
+        model = OrderedItems
+        exclude = ['status', 'order', 'id']
+
+
+class GetOrdersCnee(serializers.ModelSerializer):
+    items = serializers.SerializerMethodField('get_orders')
+    total_amount = serializers.SerializerMethodField('get_total_amount')
+
+    def get_total_amount(self, obj):
+        obj = OrderedItems.objects.select_related('stock_list_item', 'stock_list_item__item').filter(order=obj,
+                                                                                                     status=True)
+        result = [i.stock_list_item.sale_price * (i.bags * i.stock_list_item.quantity_per_bag) for i in obj]
+        return sum(result)
+
+    def get_orders(self, obj):
+        obj = OrderedItems.objects.select_related('stock_list_item', 'stock_list_item__item').filter(order=obj,
+                                                                                                     status=True)
+        serializer = GetOrderedItemsCnee(obj, many=True)
+
+        return serializer.data
+
+    class Meta:
+        model = Order
+        exclude = ['user', ]
+
+
+""" сериализатор для получения заказанных позиций пользователем группы Staff  """
+
+
+class GetOrderedItemsStaff(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+    qty = serializers.SerializerMethodField()
+    offer_price = serializers.SerializerMethodField()
+    sale_price = serializers.SerializerMethodField()
+    offer_amount = serializers.SerializerMethodField()
+    sale_amount = serializers.SerializerMethodField()
+
+    def get_sale_amount(self, obj):
+        return obj.stock_list_item.sale_price * (obj.stock_list_item.quantity_per_bag * obj.bags)
+
+    def get_offer_amount(self, obj):
+        return obj.stock_list_item.offer_price * (obj.stock_list_item.quantity_per_bag * obj.bags)
+
+    def get_sale_price(self, obj):
+        return obj.stock_list_item.sale_price
+
+    def get_offer_price(self, obj):
+        return obj.stock_list_item.offer_price
+
+    def get_qty(self, obj):
+        return obj.stock_list_item.quantity_per_bag * obj.bags
+
+    def get_name(self, obj):
+        return f'{obj.stock_list_item.item.english_name}/ ' \
+               f'{obj.stock_list_item.item.scientific_name}/ ' \
+               f'{obj.stock_list_item.item.russian_name}/' \
+               f'{obj.stock_list_item.item.size}'
+
+    class Meta:
+        model = OrderedItems
+        exclude = ['status', ]
+
+
+class GetOrdersStaff(serializers.ModelSerializer):
+    orders = serializers.SerializerMethodField()
+    amounts = serializers.SerializerMethodField()
+
+    def get_amounts(self, obj):
+        obj = OrderedItems.objects.select_related('stock_list_item__item').filter(stock_list_item__stock_list=obj,
+                                                                                  status=True)
+        buy = sum([i.stock_list_item.offer_price * (i.bags * i.stock_list_item.quantity_per_bag) for i in obj])
+        sale = sum([i.stock_list_item.sale_price * (i.bags * i.stock_list_item.quantity_per_bag) for i in obj])
+        return {'buy': buy, 'sale': sale, 'profit': sale - buy}
+
+    def get_orders(self, obj):
+        print(2)
+        obj = OrderedItems.objects.select_related('stock_list_item__item').filter(stock_list_item__stock_list=obj,
+                                                                                  status=True)
+        serializer = GetOrderedItemsStaff(obj, many=True)
+        return serializer.data
+
+    class Meta:
+        model = StockList
+        fields = '__all__'
