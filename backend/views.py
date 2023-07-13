@@ -23,7 +23,7 @@ from backend.serializers import StateSerializer, UserSerializer, StockTypeSerial
     ShipAddressesSerializer, StockListCreateSerializer, OrderSerializer,\
     GetStockCneeSerializer, GetStockShprSerizlier, GetStockStaffSerializator, StockUpdateShprSerializer,\
     StockUpdateStaffSerializer, GetStockItemsSerializer, FreightRatesSerializer, FreightRateSetSerializer,\
-    GetStock, ItemsCheckSerializer, ItemUpdateSerializer, StockItemUpdateSerializer, GetOrdersShpr, GetOrdersCnee, \
+    ItemsCheckSerializer, ItemUpdateSerializer, StockItemUpdateSerializer, GetOrdersShpr, GetOrdersCnee, \
     GetOrdersStaff
 
 from backend.signals import new_user_registered, new_stock_list, stock_list_update, order_status, changes_message, \
@@ -45,12 +45,10 @@ class OrderList(ListAPIView):
             obj = get_object_or_404(Order, stock_list=pk, user=request.user)
             serializer = GetOrdersCnee(obj)
             return Response(serializer.data)
-
         if request.user.type == 'shpr':
             obj = get_object_or_404(StockList.objects.select_related('company'), id=pk, company__user=request.user)
             serializer = GetOrdersShpr(obj)
             return Response(serializer.data)
-
         if request.user.type == 'shpr/cnee':
             obj = get_list_or_404(Order.objects.select_related('stock_list', 'stock_list__company__user'), stock_list=pk)
             if obj[0].stock_list.company.user == request.user:
@@ -60,7 +58,6 @@ class OrderList(ListAPIView):
                 obj1 = get_object_or_404(Order, stock_list=pk, user=request.user)
                 serializer = GetOrdersCnee(obj1)
             return Response(serializer.data)
-
         if request.user.type == 'staff':
             obj = get_object_or_404(StockList, id=pk)
             serializer = GetOrdersStaff(obj)
@@ -69,34 +66,45 @@ class OrderList(ListAPIView):
 
 class Orders(APIView):
     permission_classes = [Or(And(IsCnee, ), And(IsStaff), And(IsShprorCnShpr) )]
-
+    """ получение заказов по ид """
     def get(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
         order = None
+        user_type = None
+
         if request.user.type == 'cnee':
             order = get_object_or_404(Order.objects.select_related('stock_list'),
                                       id=pk,
                                       user=request.user.id)
-
+            user_type = request.user.type
         elif request.user.type == 'staff':
             order = get_object_or_404(Order.objects.select_related('stock_list'),
                                       id=pk)
-
+            user_type = request.user.type
         elif request.user.type == 'shpr':
             order = get_object_or_404(Order.objects.select_related('stock_list__company'),
                                       id=pk,
                                       stock_list__company__user=request.user)
-
+            user_type = request.user.type
         elif request.user.type == 'shpr/cnee':
             # Добработать получение заказа по ид поставщиком/покупателем
-            order = get_object_or_404(Order.objects.select_related('stock_list__company'))
-        serializer = OrderSerializer(order, context={'request': request.user.type})
+            order = get_object_or_404(Order.objects.select_related('stock_list__company'), id=pk)
+            if order.stock_list.company.user == request.user:
+                user_type = 'shpr'
+            elif order.user == request.user:
+                user_type = 'cnee'
+            else:
+                return JsonResponse({'incorrect': 'id'})
+        serializer = OrderSerializer(order, context={'request': user_type})
         return Response(serializer.data)
 
     def post(self, request, *args, **kwargs):
         # проверка на актуальность сток листа
-        obj = get_object_or_404(StockList, id=request.data['stock_list'], status='offered')
+        obj = get_object_or_404(StockList.objects.select_related('company__user'), id=request.data['stock_list'], status='offered')
+        # проверка принадлежности сток листа, нельзя заказать по своему сток листу
+        if obj.company.user == request.user:
+            return JsonResponse({'error': 'can not order from your stocklist'})
         # проверка входящего джсона
         if not {'items', 'ship_to', 'stock_list'}.issubset(request.data) or not isinstance(request.data['items'], list):
             return JsonResponse({'error': 'incorrect fields'})
@@ -721,7 +729,7 @@ class Stock(APIView):
     def put(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
-        # обновление сток листа поставщиками.
+        # обновление сток листа поставщиками. также можно изменять статус сток листа на closed
         if request.user.type in ['shpr', 'shpr/cnee']:
             instance = StockList.objects.select_related('company',
                                                         'stock_type').filter(id=pk,
@@ -763,7 +771,7 @@ class Stock(APIView):
             obj = StockList.objects.select_related('company').filter(id=pk, company__user=request.user).first()
             if not obj:
                 return JsonResponse({'incorrect id': f'{pk}'})
-            obj.status = 'closed'
+            obj.status = 'deleted'
             obj.save()
             # информирование стафф об размещении нового сток листа
             stock_list_update.send(sender=self.__class__,
@@ -777,7 +785,7 @@ class Stock(APIView):
             obj = StockList.objects.select_related('company').filter(id=pk).first()
             if not obj:
                 return JsonResponse({'incorrect id': f'{pk}'})
-            obj.status = 'closed'
+            obj.status = 'deleted'
             obj.save()
             # информирование поставщика об изменении его сток листа
             stock_list_update.send(sender=self.__class__,

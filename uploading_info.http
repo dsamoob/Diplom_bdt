@@ -1,7 +1,7 @@
 
 ###________________Получение списка заказов по сток листу_____________________
 ###___Получения списка заказов поставщиком
-GET http://127.0.0.1:8000/api/v1/orderlist/3/
+GET http://127.0.0.1:8000/api/v1/orderlist/6/
 Authorization: Token user3shpr
 Content-Type: application/json
 
@@ -96,19 +96,19 @@ Authorization: Token user2cnee
 Content-Type: application/json
 
 ###_____________________Stock/Items/<pk>/_______________________________________________________________________________
-### Запрос позиций из стока покупателем
+### Запрос позиций из стока по ид стока покупателем
 GET http://127.0.0.1:8000/api/v1/stock/items/3/
 Authorization: Token user2cnee
 Content-Type: application/json
-### Запрос позиций из стока поставщиком
+### Запрос позиций из стока по ид стока поставщиком
 GET http://127.0.0.1:8000/api/v1/stock/items/3/
 Authorization: Token user3shpr
 Content-Type: application/json
-### Запрос позиций из стока постуавщиком/клиентом
+### Запрос позиций из стока по ид стока постуавщиком/клиентом
 GET http://127.0.0.1:8000/api/v1/stock/items/3/
 Authorization: Token user4shpr/cnee
 Content-Type: application/json
-### Запрос позиций из стока staff
+### Запрос позиций из стока по ид стока staff
 GET http://127.0.0.1:8000/api/v1/stock/items/3/
 Authorization: Token user1staff
 Content-Type: application/json
@@ -189,20 +189,16 @@ Content-Type: application/json
 "url": "https://github.com/dsamoob/Diplom_bdt/blob/main/Singapore_Stock_sale_prices.xls?raw=true"
 }
 ###______________________Stock/<pk>____________________________________________________________________________________
-###___Получение сток листов работником
+###___Получение сток листов по токену (всех) работником(развернуто)
 GET http://127.0.0.1:8000/api/v1/stock/
 Authorization: Token user1staff
 Content-Type: application/json
-###___Получение сток листов покупателем по ид
+###___Получение сток листов поставщиком по токену(все) или ид
 GET http://127.0.0.1:8000/api/v1/stock/
 Authorization: Token user2cnee
 Content-Type: application/json
-###___Получение всех активных сток листов покупателем
-GET http://127.0.0.1:8000/api/v1/stock/
-Authorization: Token user2cnee
-Content-Type: application/json
-###___Получение сток листов поставщиком
-GET http://127.0.0.1:8000/api/v1/stock/
+###___Получение сток листов поставщиком по токену(все) или ид
+GET http://127.0.0.1:8000/api/v1/stock/3/
 Authorization: Token user3shpr
 Content-Type: application/json
 ###___Получение сток листов поставщиком/покупателем
@@ -218,8 +214,8 @@ Content-Type: application/json
 
 {
   "company": 2,
-  "orders_till_date" : "2023-05-30",
-  "shipment_date": "2023-06-07",
+  "orders_till_date" : "2023-07-20",
+  "shipment_date": "2023-07-30",
   "stock_type": 1,
   "bags_quantity": 4,
   "box_weight": 13.4,
@@ -229,21 +225,22 @@ Content-Type: application/json
 
 }
 ###___Изменение сток листа поставщиком или поставщиком
-PUT http://127.0.0.1:8000/api/v1/stock/1/
+PUT http://127.0.0.1:8000/api/v1/stock/3/
 Authorization: Token user3shpr
 Content-Type: application/json
 
 {
-  "company": 3,
-  "orders_till_date" : "2023-05-20",
-  "shipment_date": "2023-06-13",
+  "company": 2,
+  "orders_till_date" : "2023-07-20",
+  "shipment_date": "2023-07-30",
   "stock_type": 1,
   "bags_quantity": 1,
   "box_weight": 13.4,
   "freight_rate": 6846.57,
   "ship_from": 1,
   "transport_type": "Air",
-  "currency_type": "USD"
+  "currency_type": "USD",
+  "status": "closed"
 
 }
 ###___Размещение сток листа поставщиком/покупателем,
@@ -260,8 +257,7 @@ Content-Type: application/json
   "box_weight": 14.4,
   "freight_rate": 5.5,
   "ship_from": 3,
-  "transport_type": "Air"
-
+  "transport_type": "Air",
 }
 ###___Изменение сток листа пользователем staff
 PUT http://127.0.0.1:8000/api/v1/stock/3/
@@ -281,7 +277,7 @@ Authorization: Token user2cnee
 Content-Type: application/json
 
 ###___Удаление сток листа поставщиком
-DELETE http://127.0.0.1:8000/api/v1/stock/9/
+DELETE http://127.0.0.1:8000/api/v1/stock/3/
 Authorization: Token user3shpr
 Content-Type: application/json
 ###___Удаление сток листа staff
@@ -305,10 +301,10 @@ Content-Type: application/json
   "phone": "999-444-111",
   "transport_type": "Air"
 }
-###
 
+###___получение адресов получения по пользователю или ид
 GET http://127.0.0.1:8000/api/v1/user/details/shipto/
-Authorization: Token user3shpr
+Authorization: Token user2cnee
 Content-Type: application/json
 
 ###
@@ -376,9 +372,9 @@ DELETE http://127.0.0.1:8000/api/v1/user/details/company/16/
 Authorization: Token 14215596090f7653a9f8eea4b8ed6a3d5356e636
 Content-Type: application/json
 
-###
-GET http://127.0.0.1:8000/api/v1/user/details/company/3/
-Authorization: Token user4shpr/cnee
+###___получение информации  об компаниях и адресах по ид или по пользователю
+GET http://127.0.0.1:8000/api/v1/user/details/company
+Authorization: Token user2cnee
 Content-Type: application/json
 
 ###___UserDetails____
@@ -389,9 +385,9 @@ Content-Type: application/json
 {
   "first_name": "Ego4r"
 }
-###
-GET http://127.0.0.1:8000/api/v1/user/details
-Authorization: Token 086c45927877236e20da382bc1b926b376b66cab
+###___получение информации о пользователе по токену
+GET http://127.0.0.1:8000/api/v1/user/details/
+Authorization: Token user1staff
 Content-Type: application/json
 
 
@@ -408,7 +404,7 @@ Content-Type: application/json
     {"name": "marine"}
 ]
 }
-###
+###___ получение типов сток листов
 GET http://127.0.0.1:8000/api/v1/filldb/stocktypes/
 Authorization: Token user1staff
 Content-Type: application/json
@@ -424,14 +420,12 @@ Content-Type: application/json
   "url": "https://github.com/dsamoob/Diplom_bdt/blob/3d523005648fff47a3a7566f5e77ace0dcd2619e/freightrates.xls?raw=true"
 }
 
-###
-GET http://127.0.0.1:8000/api/v1/filldb/freight/
+###___ получение фрахта всех городов или по ид
+GET http://127.0.0.1:8000/api/v1/filldb/freight/44/
 Authorization: Token user1staff
 Content-Type: application/json
 
-{
-    "city": "Хабаровск"
-}
+
 
 ### _____Загрузка стран и городов в дб____ и их проверка
 POST http://127.0.0.1:8000/api/v1/filldb/state/

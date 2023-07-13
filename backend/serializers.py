@@ -1,5 +1,4 @@
 from abc import ABC
-
 from backend.models import User, CompanyDetails, State, \
     City, ShipAddresses, FreightRates, StockType, StockList, Item, StockListItem, Order, OrderedItems, FreightRatesSet
 from rest_framework import serializers
@@ -7,9 +6,7 @@ from datetime import datetime as dt
 from datetime import date
 from datetime import timedelta as td
 from django.db.models import Sum
-
 from rest_framework.serializers import ValidationError as VE
-
 from django.core.exceptions import ValidationError
 
 
@@ -291,18 +288,6 @@ class FreightRateSetSerializer(serializers.ModelSerializer):
 """_______________________Блок сериализаторов для работы с заказами_______________________________-"""
 
 
-# class OrderedItemSerializer(serializers.ModelSerializer):
-#     def create_or_update(self, data):
-#         obj, _ = OrderedItems.objects.update_or_create(bags=data['bags'],
-#                                                        amount=data['amount'],
-#                                                        item=data['item'],
-#                                                        order=data['order'])
-#
-#     class Meta:
-#         model = OrderedItems
-#         fields = '__all__'
-
-
 class OrderedItemsDetails(serializers.ModelSerializer):
     english_name = serializers.SerializerMethodField('get_english_name')
     scientific_name = serializers.SerializerMethodField('get_scientific_name')
@@ -416,10 +401,8 @@ class OrderSerializer(serializers.ModelSerializer):
         return sum
 
     def get_ordered_items(self, obj):
-
         obj = OrderedItems.objects.select_related('order__stock_list', 'stock_list_item__item').filter(order=obj.id,
                                                                                                        status=True)
-
         if not obj:
             return None
         return OrderedItemsDetails(obj, many=True, context={'request': self.context.get('request')}).data
@@ -427,7 +410,6 @@ class OrderSerializer(serializers.ModelSerializer):
     def get_or_create(self, data):
         items = data.pop('items')
         data['shipment_date'] = data['stock_list'].shipment_date
-
         order, _ = Order.objects.get_or_create(**data)
         return order, items, _
 
@@ -444,33 +426,6 @@ class OrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = '__all__'
-
-
-class GetStock(serializers.ModelSerializer):
-    orders = serializers.SerializerMethodField('get_orders')
-
-    def get_orders(self, obj):
-        type = self.context.get('request').type
-        user = self.context.get('request')
-        if type == 'shpr':
-            obj = Order.objects.select_related('stock_list',
-                                               'stock_list__company__user').filter(stock_list=obj,
-                                                                                   status__in=['Received',
-                                                                                               'Confirmed',
-                                                                                               'Shipped',
-                                                                                               'In process',
-                                                                                               'Updated'],
-                                                                                   stock_list__company__user=user)
-        # elif self.context.get('request') == 'shpr/cnee':
-        #     if obj.company ==
-        # print(self.context.get('request'),1)
-        # obj = Order.objects.filter(stock_list=obj)
-        serializer = OrderSerializer(obj, many=True, context={'request': self.context.get('request')})
-        return serializer.data
-
-    class Meta:
-        model = StockList
         fields = '__all__'
 
 
@@ -575,6 +530,12 @@ class StockUpdateShprSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # serializers.raise_errors_on_nested_writes('updated', self, validated_data)
+        if validated_data.get('status'):
+            status = validated_data['status']
+            if status == 'closed':
+                instance.status = status
+            else:
+                instance.status = 'updated'
         if validated_data.get('company'):
             instance.company = CompanyDetails.objects.get(id=validated_data['company'])
         if validated_data.get('ship_from'):
@@ -588,7 +549,7 @@ class StockUpdateShprSerializer(serializers.ModelSerializer):
         instance.bags_quantity = validated_data.get('bags_quantity', instance.bags_quantity)
         instance.box_weight = validated_data.get('box_weight', instance.box_weight)
         instance.currency_type = validated_data.get('currency_type', instance.currency_type)
-        instance.status = 'updated'
+
         instance.save()
         return instance
 
@@ -625,7 +586,6 @@ class StockUpdateStaffSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
-
         instance.orders_till_date = validated_data.get('orders_till_date', instance.orders_till_date)
         instance.shipment_date = validated_data.get('shipment_date', instance.shipment_date)
         if validated_data.get('stock_type'):
