@@ -20,6 +20,7 @@ class IsShprorCnShpr(BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.is_authenticated and request.user.type in ['shpr', 'shpr/cnee']
 
+
 class IsCnee(BasePermission):
 
     def has_permission(self, request, view):

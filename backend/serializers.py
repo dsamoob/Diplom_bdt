@@ -1,22 +1,30 @@
-from abc import ABC
 from backend.models import User, CompanyDetails, State, \
-    City, ShipAddresses, FreightRates, StockType, StockList, Item, StockListItem, Order, OrderedItems, FreightRatesSet
+    City, ShipAddresses, FreightRates, StockType, StockList,  StockListItem, Order, OrderedItems, FreightRatesSet
 from rest_framework import serializers
 from datetime import datetime as dt
 from datetime import date
 from datetime import timedelta as td
-from django.db.models import Sum
 from rest_framework.serializers import ValidationError as VE
-from django.core.exceptions import ValidationError
 
 
 class CitySerializer(serializers.ModelSerializer):
+    """ Сериализатор названий городов"""
     class Meta:
         model = City
         fields = ('id', 'name')
 
 
+class StateSerializer(serializers.ModelSerializer):
+    """ Сериализатор гордов/стран"""
+    cities = CitySerializer(many=True)
+
+    class Meta:
+        model = State
+        fields = ('name', 'id', 'cities')
+
+
 class FreightRatesSerializer(serializers.ModelSerializer):
+    """ Сериазилатор стоимостей фрахта"""
     name = serializers.SerializerMethodField('get_city_name')
 
     def get_city_name(self, obj):
@@ -27,29 +35,15 @@ class FreightRatesSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class StateSerializer(serializers.ModelSerializer):
-    cities = CitySerializer(many=True)
-
-    class Meta:
-        model = State
-        fields = ('name', 'id', 'cities')
-
-
-class StateDescriptionSerializer(serializers.ModelSerializer):
-    cities = CitySerializer(read_only=True, many=True)
-
-    class Meta:
-        model = State
-        fields = ['id', 'name', 'cities']
-
-
 class StockTypeSerializer(serializers.ModelSerializer):
+    """ Сериализатор типов продукции к сток листам"""
     class Meta:
         model = StockType
         fields = ['id', 'name']
 
 
 class ShipToSerializer(serializers.ModelSerializer):
+    """ Сериализатор к адресам доставки/отправки"""
     city = serializers.SerializerMethodField('get_city')
     state = serializers.SerializerMethodField('get_state')
 
@@ -109,12 +103,14 @@ class ShipAddressesSerializer(serializers.ModelSerializer):
 
 
 class CompanySerializer(serializers.ModelSerializer):
+    """ Сериализатор для работы с компаниями """
     class Meta:
         model = CompanyDetails
         fields = '__all__'
 
 
 class CompanyDetailsSerializer(serializers.ModelSerializer):
+
     state = serializers.SerializerMethodField('get_state')
     city = serializers.SerializerMethodField('get_city')
     ship_addr = ShipAddressesSerializer(many=True, read_only=True)
@@ -166,6 +162,7 @@ class CompanyDetailsUpdateSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    """ Сериализатор для работы с пользователем """
     user_companies = CompanyDetailsSerializer(read_only=True, many=True)
 
     class Meta:
@@ -178,6 +175,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class GetItems(serializers.ModelSerializer):
+    """ Сериализатор для получения позиций сток листа"""
     code = serializers.SerializerMethodField('get_code')
     english_name = serializers.SerializerMethodField('get_english_name')
     scientific_name = serializers.SerializerMethodField('get_scientific_name')
@@ -241,6 +239,7 @@ class GetItems(serializers.ModelSerializer):
 
 
 class GetStockItemsSerializer(serializers.ModelSerializer):
+    """ Сериализатор для получения позиций по сток листу """
     stock_items = serializers.SerializerMethodField('get_stock_items')
 
     def __init__(self, *args, **kwargs):

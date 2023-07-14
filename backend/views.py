@@ -1,43 +1,38 @@
 import os
-
-from django.contrib.auth.password_validation import validate_password
-
-from django.db.models import Q, Min, Prefetch
-import xlrd
-from rest_condition import And, Or
-from decimal import Decimal
-from datetime import date, timedelta
+import ssl
 import urllib.request
+import xlrd
 
-from rest_framework.generics import ListAPIView, get_object_or_404
-from django.shortcuts import get_list_or_404
-
-from backend.permissions import IsStaff, IsCneeShpr, IsAuthenticated, IsShprorCnShpr, IsCnee
-from rest_framework.authtoken.models import Token
-from rest_framework.response import Response
+from datetime import date, timedelta
+from decimal import Decimal
+from django.contrib.auth import authenticate
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
+from django.db.models import Q, Prefetch
 from django.http import JsonResponse
+from django.shortcuts import get_list_or_404
+from rest_condition import And, Or
+from rest_framework.authtoken.models import Token
+from rest_framework.generics import ListAPIView, get_object_or_404
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from backend.models import User, State, ConfirmEmailToken, City, FreightRates, StockType, CompanyDetails, \
     ShipAddresses, StockList, StockListItem, Order, OrderedItems, Item, FreightRatesSet
+from backend.permissions import IsStaff, IsCneeShpr, IsAuthenticated, IsShprorCnShpr, IsCnee
 from backend.serializers import StateSerializer, UserSerializer, StockTypeSerializer, \
     CompanyDetailsSerializer, ShipToSerializer, CompanyDetailsUpdateSerializer, ShipAddressesUpdateSerializer, \
-    ShipAddressesSerializer, StockListCreateSerializer, OrderSerializer,\
-    GetStockCneeSerializer, GetStockShprSerizlier, GetStockStaffSerializator, StockUpdateShprSerializer,\
-    StockUpdateStaffSerializer, GetStockItemsSerializer, FreightRatesSerializer, FreightRateSetSerializer,\
+    ShipAddressesSerializer, StockListCreateSerializer, OrderSerializer, \
+    GetStockCneeSerializer, GetStockShprSerizlier, GetStockStaffSerializator, StockUpdateShprSerializer, \
+    StockUpdateStaffSerializer, GetStockItemsSerializer, FreightRatesSerializer, FreightRateSetSerializer, \
     ItemsCheckSerializer, ItemUpdateSerializer, StockItemUpdateSerializer, GetOrdersShpr, GetOrdersCnee, \
     GetOrdersStaff
-
-from backend.signals import new_user_registered, new_stock_list, stock_list_update, order_status, changes_message, \
-    item_update
-from rest_framework.views import APIView
-from django.contrib.auth import authenticate
-from django.core.validators import URLValidator
-from django.core.exceptions import ValidationError
-import ssl
+from backend.signals import new_user_registered, new_stock_list, stock_list_update, order_status, item_update
 
 
 class OrderList(ListAPIView):
+    """ Получение списка заказов по ид сток листа, разные формы в зависимости от типа пользователя"""
     permission_classes = [Or(And(IsShprorCnShpr, ), And(IsStaff), And(IsCnee),)]
-
     def get(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
@@ -65,8 +60,8 @@ class OrderList(ListAPIView):
 
 
 class Orders(APIView):
+    """ Получение заказов по ид """
     permission_classes = [Or(And(IsCnee, ), And(IsStaff), And(IsShprorCnShpr) )]
-    """ получение заказов по ид """
     def get(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
@@ -99,12 +94,16 @@ class Orders(APIView):
         serializer = OrderSerializer(order, context={'request': user_type})
         return Response(serializer.data)
 
+
     def post(self, request, *args, **kwargs):
+        """ Создание заказа """
         # проверка на актуальность сток листа
         obj = get_object_or_404(StockList.objects.select_related('company__user'), id=request.data['stock_list'], status='offered')
         # проверка принадлежности сток листа, нельзя заказать по своему сток листу
         if obj.company.user == request.user:
             return JsonResponse({'error': 'can not order from your stocklist'})
+        if request.user.type == 'shpr':
+            return JsonResponse({'error': 'shipper can not make an orders'})
         # проверка входящего джсона
         if not {'items', 'ship_to', 'stock_list'}.issubset(request.data) or not isinstance(request.data['items'], list):
             return JsonResponse({'error': 'incorrect fields'})
@@ -131,7 +130,7 @@ class Orders(APIView):
         # проверка на достаточность пакетов в заказе
         if sum(check.values()) % request.data['stock_list'].bags_quantity != 0:
             errors_list.append({'error': 'incorrect bags quantity'})
-        # проверка заказываемых позиций на доступность в стоке P.S. можно изменить перебор на сравнение множеств
+        #  Проверка заказываемых позиций на доступность в стоке P.S. можно изменить перебор на сравнение множеств
         id_s = [i.id for i in item_obj.keys()]
         for item in check.keys():
             if item not in id_s:
@@ -181,6 +180,7 @@ class Orders(APIView):
                              'order_id': order.id})
 
     def put(self, request, pk=None, *args, **kwargs):
+        """ Изменение заказа """
         if not pk:
             return JsonResponse({'error': 'No pk'})
         # пользователь группы staff может только менять статус заказа и дату доставки
@@ -230,6 +230,7 @@ class Orders(APIView):
             return JsonResponse({'ok': 'finished'})
 
     def delete(self, request, pk=None, *args, **kwargs):
+        """ Удаление заказа """
         if not pk:
             return JsonResponse({'error': 'No pk'})
         if request.user.type in ['cnee', 'shpr/cnee']:
@@ -257,9 +258,9 @@ class Orders(APIView):
 
 
 class GetStockItems(APIView):
+    """ Получение позиций из сток листа """
     permission_classes = (IsAuthenticated,)
 
-    # получение позиций из сток листа
     @staticmethod
     def get(request, pk=None, *args, **kwargs):
         if not pk:
@@ -305,6 +306,7 @@ class GetStockItems(APIView):
 
 
 class StockItemUpdate(APIView):
+    """ Обновление позиций сток листа"""
     permission_classes = [Or(And(IsShprorCnShpr, ), And(IsStaff), )]
 
     def post(self, request, pk=None, *args, **kwargs):
@@ -472,6 +474,7 @@ class StockItemUpdate(APIView):
 
 
 class StockItemsUpload(APIView):
+    """ Загрузка эксель файлов с позициями для сток листов """
     permission_classes = (IsAuthenticated,)
 
     def post(self, request, pk=None, *args, **kwargs):
@@ -552,7 +555,7 @@ class StockItemsUpload(APIView):
                                       'limit': limit}
                 # добавление кода позиции в список позиций (для предотвращения дублей)
                 items_list.append(row[0])
-            # получения позиций из бд по сформированному списку
+            # получение позиций из бд по сформированному списку
             items_qs = Item.objects.select_related('company').filter(code__in=items_dict.keys(),
                                                                      company__user=request.user)
             # формирования списка кодов из queryset
@@ -660,6 +663,7 @@ class StockItemsUpload(APIView):
 
 
 class Stock(APIView):
+    """ создание, получение, изменение, удаление сток листов"""
     permission_classes = (IsAuthenticated,)
 
     @staticmethod
@@ -800,10 +804,9 @@ class Stock(APIView):
 
 
 class UserShipTo(ListAPIView):
+    """ Получение всего списка адресов или одного по ид """
     permission_classes = (IsCneeShpr,)
-    """
-    Получение всего списка адресов или одного по ид
-    """
+
 
     def get(self, request, pk=None, *args, **kwargs):
         obj = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id,
@@ -858,12 +861,11 @@ class UserShipTo(ListAPIView):
         serializer.update(instance=instance, validated_data=request.data)
         return JsonResponse({'status': f'item with pk {pk} updated'})
 
-    """
-    Фактическое удаление не предусмотренно т.к. адрес мог ранее использоваться, меняется только статус.
-    """
+
 
     @staticmethod
     def delete(request, pk=None, *args, **kwargs):
+        """ Фактическое удаление не предусмотренно т.к. адрес мог ранее использоваться, меняется только статус. """
         if not pk:
             return JsonResponse({'error': 'need pk'})
         com = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id,
@@ -881,7 +883,7 @@ class UserCompanies(APIView):
     """
     Работа с компаниями покупателя и поставщика, один пользователь может представлять несколько компаний,
     вне зависимости от того поставщик он или покупатель.
-    Также пользователь может быть одновременно поставщиком и покупателем.
+    Также пользователь может быть одновременно и поставщиком и покупателем.
     """
 
     def get(self, request, pk=None, *args, **kwargs):
@@ -1138,7 +1140,7 @@ class RegisterAccount(APIView):
                 return JsonResponse({'Status': False, 'Errors': {'password': error_array}})
             else:
                 # проверяем данные для уникальности имени пользователя
-                request.data._mutable = True
+                # request.data._mutable = True
                 request.data.update({})
                 user_serializer = UserSerializer(data=request.data)
                 if user_serializer.is_valid():
@@ -1161,6 +1163,7 @@ class ConfirmAccount(APIView):
     # Регистрация методом POST
     def post(self, request, *args, **kwargs):
         # проверяем обязательные аргументы
+        print(request.data)
         if {'email', 'token'}.issubset(request.data):
             token = ConfirmEmailToken.objects.filter(user__email=request.data['email'],
                                                      key=request.data['token']).first()
