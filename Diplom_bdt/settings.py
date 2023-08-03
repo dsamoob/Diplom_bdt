@@ -59,7 +59,8 @@ INSTALLED_APPS = [
     'django_rest_passwordreset',
     "debug_toolbar",
     "django_filters",
-    "silk"
+    "silk",
+    'drf_spectacular'
 ]
 
 STATIC_ROOT = os.path.join(os.path.dirname(BASE_DIR), "static_in_env")
@@ -175,6 +176,7 @@ SERVER_EMAIL = config('SERVER_EMAIL')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'backend.User'
 REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'COERCE_DECIMAL_TO_STRING': False,
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 40,
@@ -202,3 +204,10 @@ CELERY_RESULT_BACKEND = 'redis://' + REDIS_HOST + ':' + REDIS_PORT + '/0'
 CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'BDT_sistem',
+    'DESCRIPTION': 'confidentional',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}

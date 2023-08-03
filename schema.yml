@@ -1,0 +1,708 @@
+openapi: 3.0.3
+info:
+  title: BDT_sistem
+  version: 1.0.0
+  description: confidentional
+paths:
+  /api/v1/filldb/freight/:
+    get:
+      operationId: filldb_freight_retrieve
+      tags:
+      - filldb
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: filldb_freight_create
+      tags:
+      - filldb
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/filldb/freight/{id}/:
+    get:
+      operationId: filldb_freight_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - filldb
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: filldb_freight_create_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - filldb
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/filldb/state/:
+    get:
+      operationId: filldb_state_retrieve
+      tags:
+      - filldb
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: filldb_state_create
+      tags:
+      - filldb
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/filldb/state/{id}/:
+    get:
+      operationId: filldb_state_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - filldb
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: filldb_state_create_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - filldb
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/filldb/stocktypes/:
+    get:
+      operationId: filldb_stocktypes_retrieve
+      tags:
+      - filldb
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: filldb_stocktypes_create
+      tags:
+      - filldb
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/order/:
+    get:
+      operationId: order_retrieve
+      description: Получение заказов по ид
+      tags:
+      - order
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: order_create
+      description: Создание заказа
+      tags:
+      - order
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: order_update
+      description: Изменение заказа
+      tags:
+      - order
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: order_destroy
+      description: Удаление заказа
+      tags:
+      - order
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/order/{id}/:
+    get:
+      operationId: order_retrieve_2
+      description: Получение заказов по ид
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - order
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: order_create_2
+      description: Создание заказа
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - order
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: order_update_2
+      description: Изменение заказа
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - order
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: order_destroy_2
+      description: Удаление заказа
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - order
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/orderlist/{id}/:
+    get:
+      operationId: orderlist_retrieve
+      description: Получение списка заказов по ид сток листа, разные формы в зависимости
+        от типа пользователя
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - orderlist
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/stock/:
+    get:
+      operationId: stock_retrieve
+      description: создание, получение, изменение, удаление сток листов
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: stock_create
+      description: создание, получение, изменение, удаление сток листов
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: stock_update
+      description: создание, получение, изменение, удаление сток листов
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: stock_destroy
+      description: создание, получение, изменение, удаление сток листов
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/stock/{id}/:
+    get:
+      operationId: stock_retrieve_2
+      description: создание, получение, изменение, удаление сток листов
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: stock_create_2
+      description: создание, получение, изменение, удаление сток листов
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: stock_update_2
+      description: создание, получение, изменение, удаление сток листов
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: stock_destroy_2
+      description: создание, получение, изменение, удаление сток листов
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/stock/items/{id}/:
+    get:
+      operationId: stock_items_retrieve
+      description: Получение позиций из сток листа
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/stock/items/update/{id}/:
+    post:
+      operationId: stock_items_update_create
+      description: |-
+        Размещение новой позиции к сток-листу поставщиком
+        как пк используется ид сток листа
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: stock_items_update_update
+      description: Обновление позиций сток листа
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: stock_items_update_destroy
+      description: Обновление позиций сток листа
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/stock/items/upload/{id}/:
+    post:
+      operationId: stock_items_upload_create
+      description: Загрузка эксель файлов с позициями для сток листов
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - stock
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/user/details:
+    get:
+      operationId: user_details_retrieve
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: user_details_create
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/user/details/company:
+    get:
+      operationId: user_details_company_retrieve
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: user_details_company_create
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: user_details_company_update
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: user_details_company_destroy
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/user/details/company/{id}/:
+    get:
+      operationId: user_details_company_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: user_details_company_create_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: user_details_company_update_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: user_details_company_destroy_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/user/details/shipto/:
+    get:
+      operationId: user_details_shipto_retrieve
+      description: Получение всего списка адресов или одного по ид
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: user_details_shipto_create
+      description: Получение всего списка адресов или одного по ид
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: user_details_shipto_update
+      description: Получение всего списка адресов или одного по ид
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: user_details_shipto_destroy
+      description: Фактическое удаление не предусмотренно т.к. адрес мог ранее использоваться,
+        меняется только статус.
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/user/details/shipto/{id}/:
+    get:
+      operationId: user_details_shipto_retrieve_2
+      description: Получение всего списка адресов или одного по ид
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: user_details_shipto_create_2
+      description: Получение всего списка адресов или одного по ид
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: user_details_shipto_update_2
+      description: Получение всего списка адресов или одного по ид
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: user_details_shipto_destroy_2
+      description: Фактическое удаление не предусмотренно т.к. адрес мог ранее использоваться,
+        меняется только статус.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/user/login:
+    post:
+      operationId: user_login_create
+      description: Класс для авторизации пользователей
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/user/register:
+    post:
+      operationId: user_register_create
+      description: Для регистрации покупателей
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/user/register/confirm:
+    post:
+      operationId: user_register_confirm_create
+      description: Класс для подтверждения почтового адреса
+      tags:
+      - user
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+components:
+  securitySchemes:
+    tokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Token-based authentication with required prefix "Token"
