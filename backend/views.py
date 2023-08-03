@@ -3,6 +3,7 @@ import ssl
 import urllib.request
 import xlrd
 
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 from .tasks import send_email
 from datetime import date, timedelta
 from decimal import Decimal
@@ -34,7 +35,7 @@ from backend.serializers import StateSerializer, UserSerializer, StockTypeSerial
 class OrderList(ListAPIView):
     """ Получение списка заказов по ид сток листа, разные формы в зависимости от типа пользователя"""
     permission_classes = [Or(And(IsShprorCnShpr, ), And(IsStaff), And(IsCnee), )]
-
+    throttle_classes = [UserRateThrottle]
     def get(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
@@ -273,6 +274,7 @@ class Orders(APIView):
 class GetStockItems(APIView):
     """ Получение позиций из сток листа """
     permission_classes = (IsAuthenticated,)
+    throttle_classes = [UserRateThrottle]
 
     @staticmethod
     def get(request, pk=None, *args, **kwargs):
@@ -679,6 +681,7 @@ class StockItemsUpload(APIView):
 class Stock(APIView):
     """ создание, получение, изменение, удаление сток листов"""
     permission_classes = (IsAuthenticated,)
+    throttle_classes = [UserRateThrottle]
 
     @staticmethod
     def get(request, pk=None, *args, **kwargs):
@@ -829,6 +832,7 @@ class Stock(APIView):
 class UserShipTo(ListAPIView):
     """ Получение всего списка адресов или одного по ид """
     permission_classes = (IsCneeShpr,)
+    throttle_classes = [UserRateThrottle]
 
     def get(self, request, pk=None, *args, **kwargs):
         obj = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id,
@@ -900,6 +904,7 @@ class UserShipTo(ListAPIView):
 
 class UserCompanies(APIView):
     permission_classes = (IsCneeShpr,)
+    throttle_classes = [UserRateThrottle]
     """
     Работа с компаниями покупателя и поставщика, один пользователь может представлять несколько компаний,
     вне зависимости от того поставщик он или покупатель.
@@ -1084,6 +1089,7 @@ class UploadStateCity(APIView):
 
 
 class LoginAccount(APIView):
+
     """
     Класс для авторизации пользователей
     """
@@ -1108,6 +1114,7 @@ class LoginAccount(APIView):
 
 class AccountDetails(APIView):
     permission_classes = (IsAuthenticated,)
+    throttle_classes = [UserRateThrottle]
     """
     Класс для работы данными пользователя
     """
@@ -1143,6 +1150,7 @@ class AccountDetails(APIView):
 
 
 class RegisterAccount(APIView):
+    throttle_classes = [UserRateThrottle, AnonRateThrottle]
     """
     Для регистрации покупателей
     """
@@ -1183,6 +1191,7 @@ class RegisterAccount(APIView):
 
 
 class ConfirmAccount(APIView):
+    throttle_classes = [UserRateThrottle, AnonRateThrottle]
     """
     Класс для подтверждения почтового адреса
     """

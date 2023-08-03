@@ -1,6 +1,6 @@
 
 ###___Получения списка заказов поставщиком
-GET http://127.0.0.1:8000/api/v1/orderlist/6/
+GET http://127.0.0.1:8000/api/v1/orderlist/3/
 Authorization: Token user3shpr
 Content-Type: application/json
 ###___Получения списка заказов покупателем
@@ -89,7 +89,7 @@ DELETE http://127.0.0.1:8000/api/v1/order/79/
 Authorization: Token user2cnee
 Content-Type: application/json
 ###___Запрос позиций из стока по ид  покупателем
-GET http://127.0.0.1:8000/api/v1/stock/items/1/
+GET http://127.0.0.1:8000/api/v1/stock/items/3/
 Authorization: Token user2cnee
 Content-Type: application/json
 ###___Запрос позиций из стока по ид стока поставщиком
