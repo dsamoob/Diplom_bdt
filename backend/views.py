@@ -66,6 +66,7 @@ class OrderList(ListAPIView):
 class Orders(APIView):
     """ Получение заказов по ид """
     permission_classes = [Or(And(IsCnee, ), And(IsStaff, ), And(IsShprorCnShpr, ))]
+    throttle_classes = [UserRateThrottle]
 
     def get(self, request, pk=None, *args, **kwargs):
         if not pk:
@@ -323,6 +324,7 @@ class GetStockItems(APIView):
 class StockItemUpdate(APIView):
     """ Обновление позиций сток листа"""
     permission_classes = [Or(And(IsShprorCnShpr, ), And(IsStaff), )]
+    throttle_classes = [UserRateThrottle]
 
     def post(self, request, pk=None, *args, **kwargs):
         """ Размещение новой позиции к сток-листу поставщиком
@@ -492,6 +494,7 @@ class StockItemUpdate(APIView):
 class StockItemsUpload(APIView):
     """ Загрузка эксель файлов с позициями для сток листов """
     permission_classes = (IsAuthenticated,)
+    throttle_classes = [UserRateThrottle]
 
     def post(self, request, pk=None, *args, **kwargs):
         if not pk:
