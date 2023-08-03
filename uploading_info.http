@@ -8,7 +8,7 @@ GET http://127.0.0.1:8000/api/v1/orderlist/3/
 Authorization: Token user2cnee
 Content-Type: application/json
 ###___Получение списка заказов работником
-GET http://127.0.0.1:8000/api/v1/orderlist/3/
+GET http://127.0.0.1:8000/api/v1/orderlist/1/
 Authorization: Token user1staff
 Content-Type: application/json
 ###___Получение списка заказов поставщиком/покупателем
@@ -36,17 +36,17 @@ POST http://127.0.0.1:8000/api/v1/order/
 Authorization: Token user2cnee
 Content-Type: application/json
 
-{ "stock_list": 3,
-  "ship_to":1,
+{"stock_list": 3,
+  "ship_to": 5,
   "items": [
-    {"id":  11232,
+    {"id":  1337,
     "bags": 1},
-    {"id":  11238,
+    {"id":  1390,
     "bags":  1},
-    {"id": 11241,
-    "bags": 1},
-    {"id": 11243,
-    "bags": 1}
+    {"id": 1397,
+    "bags": 2},
+    {"id": 1400,
+    "bags": 2}
   ]
 }
 ###___Размерещние заказа поставщиком/покупателем
@@ -57,32 +57,32 @@ Content-Type: application/json
 { "stock_list": 3,
   "ship_to":3,
   "items": [
-    {"id":  5189,
+    {"id":  1,
     "bags": 1},
-    {"id":  5188,
+    {"id":  2,
     "bags":  1},
-    {"id": 5190,
+    {"id": 4,
     "bags": 1},
-    {"id": 5181,
+    {"id": 5,
     "bags": 1}
   ]
 }
 ###___Обновление заказа работником по ид
-PUT http://127.0.0.1:8000/api/v1/order/73/
+PUT http://127.0.0.1:8000/api/v1/order/3/
 Authorization: Token user1staff
 Content-Type: application/json
 
 {
-  "shipment_date":  "2023-06-04",
+  "shipment_date":  "2023-08-31",
   "status":  "confirmed"
 }
 ###___Изменение заказа заказчиком по ид
-PUT http://127.0.0.1:8000/api/v1/order/73/
+PUT http://127.0.0.1:8000/api/v1/order/3/
 Authorization: Token user2cnee
 Content-Type: application/json
 
 {
-  "ship_to":  4
+  "ship_to":  5
 }
 ###___Удаление заказа по ид
 DELETE http://127.0.0.1:8000/api/v1/order/79/
@@ -97,7 +97,7 @@ GET http://127.0.0.1:8000/api/v1/stock/items/3/
 Authorization: Token user3shpr
 Content-Type: application/json
 ###___Запрос позиций из стока по ид стока постуавщиком/клиентом
-GET http://127.0.0.1:8000/api/v1/stock/items/3/
+GET http://127.0.0.1:8000/api/v1/stock/items/1/
 Authorization: Token user4shpr/cnee
 Content-Type: application/json
 ###___Запрос позиций из стока по ид стока staff
@@ -105,21 +105,21 @@ GET http://127.0.0.1:8000/api/v1/stock/items/3/
 Authorization: Token user1staff
 Content-Type: application/json
 ###___Изменение опредленной позиции в сток листк - ид позиции
-PUT http://127.0.0.1:8000/api/v1/stock/items/update/11237/
-Authorization: Token user3shpr
+PUT http://127.0.0.1:8000/api/v1/stock/items/update/1586/
+Authorization: Token user4shpr/cnee
 Content-Type: application/json
 
 {
-  "scientific_name": "Тиляпия",
-  "english_name": "Тиляпия",
-  "size": "ML",
-  "offer_price" : 1.31,
+  "scientific_name": "Тилqweяпия",
+  "english_name": "Тиляпqweия",
+  "size": "qweML",
+  "offer_price" : 2.31,
   "quantity_per_bag": 12,
   "limit": 10
 
 }
 ###___Изменение определенной позиции в сток листе работником по ид позиции
-PUT http://127.0.0.1:8000/api/v1/stock/items/update/11553/
+PUT http://127.0.0.1:8000/api/v1/stock/items/update/1586/
 Authorization: Token user1staff
 Content-Type: application/json
 
@@ -130,7 +130,7 @@ Content-Type: application/json
 }
 ###___Добавление новой позиции к сток листу - ид сток листа
 POST http://127.0.0.1:8000/api/v1/stock/items/update/3/
-Authorization: Token user3shpr
+Authorization: Token user4shpr/cnee
 Content-Type: application/json
 
 {
@@ -144,7 +144,7 @@ Content-Type: application/json
 
 }
 ###___Загрузка позиций к стоку поставщиком/ поставщиком-клиентом
-POST http://127.0.0.1:8000/api/v1/stock/items/upload/1/
+POST http://127.0.0.1:8000/api/v1/stock/items/upload/3/
 Authorization: Token user4shpr/cnee
 Content-Type: application/json
 
@@ -152,7 +152,7 @@ Content-Type: application/json
 "url": "https://github.com/dsamoob/Diplom_bdt/blob/main/Singapore_stock.xls?raw=true"
 }
 ###___Обновление позиций в стоке пользователем staff (российское название и цена продажи)
-POST http://127.0.0.1:8000/api/v1/stock/items/upload/1/
+POST http://127.0.0.1:8000/api/v1/stock/items/upload/3/
 Authorization: Token user1staff
 Content-Type: application/json
 
@@ -199,8 +199,8 @@ Content-Type: application/json
 
 {
   "company": 1,
-  "orders_till_date" : "2023-07-15",
-  "shipment_date": "2023-07-27",
+  "orders_till_date" : "2023-08-15",
+  "shipment_date": "2023-08-27",
   "stock_type": 2,
   "bags_quantity": 6,
   "box_weight": 14.4,
@@ -227,15 +227,15 @@ Content-Type: application/json
   "status": "closed"
 }
 ###___Изменение сток листа пользователем staff по ид
-PUT http://127.0.0.1:8000/api/v1/stock/1/
+PUT http://127.0.0.1:8000/api/v1/stock/3/
 Authorization: Token user1staff
 Content-Type: application/json
 
 {
-  "orders_till_date" : "2023-07-20",
-  "shipment_date": "2023-07-30",
+  "orders_till_date" : "2023-08-20",
+  "shipment_date": "2023-08-30",
   "status": "offered",
-  "name": "Сингапур 2023-07-30",
+  "name": "Тай 2023-08-30",
   "currency_rate": 83.5
 }
 ###___Удаление сток листа поставщиком по ид

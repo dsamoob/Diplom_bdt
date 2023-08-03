@@ -3,8 +3,10 @@ import ssl
 import urllib.request
 import xlrd
 
+from .tasks import send_email
 from datetime import date, timedelta
 from decimal import Decimal
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -27,12 +29,12 @@ from backend.serializers import StateSerializer, UserSerializer, StockTypeSerial
     StockUpdateStaffSerializer, GetStockItemsSerializer, FreightRatesSerializer, FreightRateSetSerializer, \
     ItemsCheckSerializer, ItemUpdateSerializer, StockItemUpdateSerializer, GetOrdersShpr, GetOrdersCnee, \
     GetOrdersStaff
-from backend.signals import new_user_registered, new_stock_list, stock_list_update, order_status, item_update
 
 
 class OrderList(ListAPIView):
     """ Получение списка заказов по ид сток листа, разные формы в зависимости от типа пользователя"""
-    permission_classes = [Or(And(IsShprorCnShpr, ), And(IsStaff), And(IsCnee),)]
+    permission_classes = [Or(And(IsShprorCnShpr, ), And(IsStaff), And(IsCnee), )]
+
     def get(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
@@ -45,7 +47,8 @@ class OrderList(ListAPIView):
             serializer = GetOrdersShpr(obj)
             return Response(serializer.data)
         if request.user.type == 'shpr/cnee':
-            obj = get_list_or_404(Order.objects.select_related('stock_list', 'stock_list__company__user'), stock_list=pk)
+            obj = get_list_or_404(Order.objects.select_related('stock_list', 'stock_list__company__user'),
+                                  stock_list=pk)
             if obj[0].stock_list.company.user == request.user:
                 obj = get_object_or_404(StockList.objects.select_related('company'), id=pk, company__user=request.user)
                 serializer = GetOrdersShpr(obj)
@@ -61,7 +64,8 @@ class OrderList(ListAPIView):
 
 class Orders(APIView):
     """ Получение заказов по ид """
-    permission_classes = [Or(And(IsCnee, ), And(IsStaff), And(IsShprorCnShpr) )]
+    permission_classes = [Or(And(IsCnee, ), And(IsStaff, ), And(IsShprorCnShpr, ))]
+
     def get(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
@@ -94,7 +98,6 @@ class Orders(APIView):
         serializer = OrderSerializer(order, context={'request': user_type})
         return Response(serializer.data)
 
-
     def post(self, request, *args, **kwargs):
         """ Создание заказа """
         # проверка на актуальность сток листа
@@ -102,19 +105,25 @@ class Orders(APIView):
         # проверка принадлежности сток листа, нельзя заказать по своему сток листу
         if obj.company.user == request.user:
             return JsonResponse({'error': 'can not order from your stocklist'})
+
         if request.user.type == 'shpr':
             return JsonResponse({'error': 'shipper can not make an orders'})
         # проверка входящего джсона
+
         if not {'items', 'ship_to', 'stock_list'}.issubset(request.data) or not isinstance(request.data['items'], list):
             return JsonResponse({'error': 'incorrect fields'})
         ItemsCheckSerializer(data=request.data['items'], many=True).is_valid(raise_exception=True)
         request.data['stock_list'] = obj
         request.data['user'] = request.user
+
+
         # проверка адреса получателя на принадлежность пользователю
         request.data['ship_to'] = get_object_or_404(ShipAddresses.objects.select_related('company'),
                                                     id=request.data['ship_to'],
                                                     company__user=request.user)
+
         # создание списка ошибок
+
         check = {i['id']: i['bags'] for i in request.data['items']}  # создание словаря
         # получение из бд заказанных позиций
         item_obj = {m: list(m.ordereditems_set.all()) for m in
@@ -122,7 +131,7 @@ class Orders(APIView):
                         StockListItem.objects.prefetch_related(Prefetch('ordereditems_set',
                                                                         queryset=OrderedItems.objects.filter(
                                                                             status=True))),
-                        id__in=check.keys(),
+                        id__in=list(check.keys()),
                         stock_list=obj,
                         status=True)}
         # создание списка ошибок
@@ -171,11 +180,15 @@ class Orders(APIView):
                        'ship_to': order.ship_to}
             frt, _ = FreightRatesSet.objects.get_or_create(**fr_data)
 
-        # order_status.send(sender=self.__class__, receiver=request.user, order=order.id, text=f'Ваш заказ получен')
-        # order_status.send(sender=self.__class__,
-        #                   receiver=User.objects.filter(type='staff').first(),
-        #                   order=order.id,
-        #                   text='новый заказ')
+        send_email.delay(cnee=User.objects.filter(type='staff').first().email,
+                         sndr=settings.EMAIL_HOST_USER,
+                         text=f'Ваш заказ получен',
+                         sbj=f"Новый заказ # {order.id}")
+        send_email.delay(cnee=request.user.email,
+                         sndr=settings.EMAIL_HOST_USER,
+                         text=f'Ваш заказ получен',
+                         sbj=f"Ваш заказ получен # {order.id}")
+
         return JsonResponse({'status': 'successful',
                              'order_id': order.id})
 
@@ -193,10 +206,10 @@ class Orders(APIView):
                 return JsonResponse({'error': f'incorrect order id: {pk}'})
             serializer = OrderSerializer(request.data)
             serializer.update(validated_data=request.data, instance=instance)
-            order_status.send(sender=self.__class__,
-                              receiver=instance.user,
-                              order=pk,
-                              text=f'Статус заказа изменен: {instance.status}')
+            send_email.delay(cnee=instance.user.email,
+                             sndr=settings.EMAIL_HOST_USER,
+                             text=f'Статус заказа изменен: {instance.status}',
+                             sbj=f"Обновление статуса заказа # {pk}")
             return JsonResponse({'status': 'successful', f'order {pk}': 'updated'})
         # пользователь (cnee или shpr/cnee) может изменять только ship-to,
         # статус заказа меняется на updated автоматически
@@ -223,10 +236,10 @@ class Orders(APIView):
                            'ship_to': frt_obj.ship_to}
                 serializer = FreightRateSetSerializer(fr_data)
                 serializer.get_or_create(data=fr_data)
-            order_status.send(sender=self.__class__,
-                              receiver=User.objects.filter(type='staff').first(),
-                              order=pk,
-                              text=f'Статус заказа изменен: {instance.status}')
+            send_email.delay(cnee=User.objects.filter(type='staff').first().email,
+                             sndr=settings.EMAIL_HOST_USER,
+                             text=f'Статус заказа изменен: {instance.status}',
+                             sbj=f"Обновление статуса заказа # {pk}")
             return JsonResponse({'ok': 'finished'})
 
     def delete(self, request, pk=None, *args, **kwargs):
@@ -250,10 +263,10 @@ class Orders(APIView):
                 element.save()
                 element.order.save()
 
-        order_status.send(sender=self.__class__,
-                          receiver=User.objects.filter(type='staff').first(),
-                          order=pk,
-                          text=f'Статус заказа изменен: Deleted')
+        send_email.delay(cnee=User.objects.filter(type='staff').first().email,
+                         sndr=settings.EMAIL_HOST_USER,
+                         text=f'Статус заказа изменен: Deleted',
+                         sbj=f"Обновление статуса заказа # {pk}")
         return JsonResponse({'end': 'delete'})
 
 
@@ -323,7 +336,6 @@ class StockItemUpdate(APIView):
             item_obj = Item.objects.filter(company=stock_list.company, code=request.data['code']).first()
             # если позиция не найдена - то она создается, также, как и создается позиция к сток листу
             if not item_obj:
-                request.data['company'] = stock_list.company
                 item = Item.objects.create(code=request.data['code'],
                                            english_name=request.data['english_name'],
                                            scientific_name=request.data['scientific_name'],
@@ -335,25 +347,26 @@ class StockItemUpdate(APIView):
                                                                quantity_per_bag=request.data['quantity_per_bag'],
                                                                limit=request.data['limit'],
                                                                stock_list=stock_list)
-                # информирование работника об добалвении новой позиции
-                item_update.send(sender=self.__class__,
-                                 receiver='e.belov@bdt.ru',
-                                 subject=f'Добавление позиции {stock_list_item.id}',
-                                 text=f'В сток лист {stock_list.id} добавлена позиция')
+                # информирование работника об добавлении новой позиции
+                send_email.delay(cnee=User.objects.filter(type='staff').first().email,
+                                 sndr=settings.EMAIL_HOST_USER,
+                                 text=f'В сток лист {stock_list_item.stock_list} добавлена позиция',
+                                 sbj=f'Добавление позиции {stock_list_item.id}')
                 return Response({'item': stock_list_item.id, 'status': 'created'})
             # если позиция была найдена в бд, то она просто добавляется к сток листу
             stock_list_item = StockListItem.objects.filter(item=item_obj).first()
             if stock_list_item:
-                return JsonResponse({f'item with id {stock_list_item.id}': 'is already in stock list, use PUT METHOD to change it'})
+                return JsonResponse(
+                    {f'item with id {stock_list_item.id}': 'is already in stock list, use PUT METHOD to change it'})
             stock_list_item = StockListItem.objects.create(item=item_obj,
                                                            offer_price=request.data['offer_price'],
                                                            quantity_per_bag=request.data['quantity_per_bag'],
                                                            limit=request.data['limit'],
                                                            stock_list=stock_list)
-            item_update.send(sender=self.__class__,
-                             receiver='e.belov@bdt.ru',
-                             subject=f'Добавление позиции {stock_list_item.id}',
-                             text=f'В сток лист {stock_list_item.stock_list} добавлена позиция')
+            send_email.delay(cnee=User.objects.filter(type='staff').first().email,
+                             sndr=settings.EMAIL_HOST_USER,
+                             text=f'В сток лист {stock_list_item.stock_list} добавлена позиция',
+                             sbj=f'Добавление позиции {stock_list_item.id}')
             return Response({'item': stock_list_item.id, 'status': 'created'})
 
     def put(self, request, pk=None, *args, **kwargs):
@@ -435,12 +448,12 @@ class StockItemUpdate(APIView):
             #  отправка сообщения staff
             if updated_info:
                 obj.status = False
-                # changes_message.send(sender=self.__class__,
-                #                      receiver='e.belov@bdt.ru',
-                #                      order=orders_list_for_staff,
-                #                      text=f'Позиция {obj.id, obj.english_name, obj.scientific_name},'
-                #                           f' {updated_info}'
-                #                           f' до {obj.stock_list.orders_till_date}')
+                send_email.delay(cnee=User.objects.filter(type='staff').first().email,
+                                 sndr=settings.EMAIL_HOST_USER,
+                                 text=f'Позиция {obj.id, obj.english_name, obj.scientific_name},'
+                                      f' {updated_info}'
+                                      f' до {obj.stock_list.orders_till_date}',
+                                 sbj=f'Обновление статуса заказа orders_list_for_staff')
 
             obj.save()
             #  проход по заказам и определение темы сообщения для отправки клиентам
@@ -460,14 +473,15 @@ class StockItemUpdate(APIView):
                 # групповое обоновление заказанных позиций
                 OrderedItems.objects.bulk_update(list_for_bulk, fields=('status',))
                 # отправка писем клиентам (для ускорения можно сгруппировать по теме и отправить в скрытых копиях)
-                # for element in orders_list:
-                #     changes_message.send(sender=self.__class__,
-                #                          receiver=element[1],
-                #                          order=element[0].order.id,
-                #                          text=f'Позиция {obj.id, obj.english_name, obj.scientific_name},'
-                #                               f' {element[4]}'
-                #                               f' до {obj.stock_list.orders_till_date}')
-            return JsonResponse({'status': 'end for shpr'})
+                for element in orders_list:
+                    send_email.delay(cnee=element[1],
+                                     sndr=settings.EMAIL_HOST_USER,
+                                     text=f'Позиция {obj.id, obj.english_name, obj.scientific_name},'
+                                          f' {element[4]}'
+                                          f' до {obj.stock_list.orders_till_date}',
+                                     sbj=f'Обновление статуса заказа {element[0].order.id}')
+
+            return JsonResponse({'item': f'{obj.id}', 'status': 'updated'})
 
     def delete(self, request, pk=None, *args, **kwargs):
         pass
@@ -594,10 +608,10 @@ class StockItemsUpload(APIView):
             # удаление временного файла
             os.remove(file_name)
             # уведомление staff о полной загрузке сток листа
-            stock_list_update.send(sender=self.__class__,
-                                   user=User.objects.filter(type='staff').first(),
-                                   obj=stock_obj,
-                                   request_data={'status': 'items uploaded'})
+            send_email.delay(cnee=User.objects.filter(type='staff').first().email,
+                             sndr=settings.EMAIL_HOST_USER,
+                             text='status: items uploaded',
+                             sbj=f"Сток лист от {stock_obj.company.name} обновился")
             return JsonResponse({'status': f'added {stock_obj.id}',
                                  'errors': result_list})
 
@@ -655,7 +669,7 @@ class StockItemsUpload(APIView):
                     element.status = False
                     continue
                 element.status = True
-            result = StockListItem.objects.bulk_update(stock_items_qs, fields=('sale_price', 'status',))
+            StockListItem.objects.bulk_update(stock_items_qs, fields=('sale_price', 'status',))
 
             os.remove(file_name)
             return JsonResponse({'errors': result_list})
@@ -723,17 +737,26 @@ class Stock(APIView):
         stock_list = StockListCreateSerializer(data=request.data, context={'request': request})
         # проверка компании и адреса отправления
         stock_list.is_valid(raise_exception=True)
-
         stock = stock_list.get_or_create(validated_data=request.data)
         # уведомление пользователя staff об новом сток листе
-        new_stock_list.send(sender=self.__class__, nsl=stock)
-        return Response({'status': 'successful',
-                         'stock_id': f'{stock.id}'})
+        send_email.delay(cnee=User.objects.filter(type='staff').first().email,
+                         sndr=settings.EMAIL_HOST_USER,
+                         text=f"id: {stock.id=}\n"
+                              f"shipment_dat: {stock.shipment_date}\n"
+                              f"orders_till_date: {stock.orders_till_date}\n"
+                              f"stock_type: {stock.stock_type.name}\n"
+                              f"bags_quantity: {stock.bags_quantity}\n"
+                              f"box_weight: {stock.box_weight}\n"
+                              f"currency_type: {stock.currency_type}\n"
+                              f"transport_type: {stock.transport_type}\n",
+                         sbj=f"новый сток лист от {stock.company.name}")
+        return JsonResponse({'status': 'successful',
+                             'stock_id': f'{stock.id}'})
 
     def put(self, request, pk=None, *args, **kwargs):
         if not pk:
             return JsonResponse({'error': 'No pk'})
-        # обновление сток листа поставщиками. также можно изменять статус сток листа на closed
+        # Обновление сток листа поставщиками. также можно изменять статус сток листа на closed
         if request.user.type in ['shpr', 'shpr/cnee']:
             instance = StockList.objects.select_related('company',
                                                         'stock_type').filter(id=pk,
@@ -744,10 +767,10 @@ class Stock(APIView):
             stock.is_valid(raise_exception=True)
             stock = stock.update(instance=instance, validated_data=request.data, )
             # отправка уведомления staff об изменениях
-            stock_list_update.send(sender=self.__class__,
-                                   user=User.objects.filter(type='staff').first(),
-                                   obj=stock,
-                                   request_data=request.data)
+            send_email.delay(cnee=User.objects.filter(type='staff').first(),
+                             sndr=settings.EMAIL_HOST_USER,
+                             text=request.data,
+                             sbj=f"Сток лист от {stock.company.name} обновился")
             return JsonResponse({'status': ' successful',
                                  'stock_id': f'{stock.id} updated'})
         # обновление сток листа пользователем staff
@@ -759,8 +782,10 @@ class Stock(APIView):
             stock.is_valid(raise_exception=True)
             stock = stock.update(instance=instance, validated_data=request.data)
             # отправка сообщения об изменении поставщику разместившему сток
-            stock_list_update.send(sender=self.__class__, user=instance.company.user, obj=stock,
-                                   request_data=request.data)
+            send_email.delay(cnee=instance.company.user.email,
+                             sndr=settings.EMAIL_HOST_USER,
+                             text=f'{request.data}',
+                             sbj=f"Сток лист от {stock.company.name} обновился")
             return JsonResponse({'status': ' successful',
                                  'stock_id': f'{stock.id} updated'})
         return JsonResponse({'Put method': 'not allowed'})
@@ -777,12 +802,11 @@ class Stock(APIView):
                 return JsonResponse({'incorrect id': f'{pk}'})
             obj.status = 'deleted'
             obj.save()
-            # информирование стафф об размещении нового сток листа
-            stock_list_update.send(sender=self.__class__,
-                                   user=User.objects.filter(type='staff').first(),
-                                   obj=obj,
-                                   request_data=[]
-                                   )
+            # информирование стафф об удалении стока поставщиком
+            send_email.delay(cnee=User.objects.filter(type='staff').first(),
+                             sndr=settings.EMAIL_HOST_USER,
+                             text=[],
+                             sbj=f"Статус Сток листа от {obj.company.name} обновился")
             return JsonResponse({'status': ' successful',
                                  'stock_id': f'{obj.id} deleted'})
         elif request.user.type == 'staff':
@@ -792,11 +816,10 @@ class Stock(APIView):
             obj.status = 'deleted'
             obj.save()
             # информирование поставщика об изменении его сток листа
-            stock_list_update.send(sender=self.__class__,
-                                   user=obj.company.user,
-                                   obj=obj,
-                                   request_data=[]
-                                   )
+            send_email.delay(cnee=obj.user.email,
+                             sndr=settings.EMAIL_HOST_USER,
+                             text=[],
+                             sbj=f"Статус Сток листа от {obj.company.name} обновился на {obj.status}")
             return JsonResponse({'status': ' successful',
                                  'stock_id': f'{obj.id} deleted'})
 
@@ -806,7 +829,6 @@ class Stock(APIView):
 class UserShipTo(ListAPIView):
     """ Получение всего списка адресов или одного по ид """
     permission_classes = (IsCneeShpr,)
-
 
     def get(self, request, pk=None, *args, **kwargs):
         obj = ShipAddresses.objects.select_related('company').filter(company__user=request.user.id,
@@ -860,8 +882,6 @@ class UserShipTo(ListAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.update(instance=instance, validated_data=request.data)
         return JsonResponse({'status': f'item with pk {pk} updated'})
-
-
 
     @staticmethod
     def delete(request, pk=None, *args, **kwargs):
@@ -1075,7 +1095,10 @@ class LoginAccount(APIView):
             if user is not None:
                 if user.is_active:
                     token, _ = Token.objects.get_or_create(user=user)
-
+                    send_email.delay(cnee=token.user.email,
+                                     sndr=settings.EMAIL_HOST_USER,
+                                     text=token.key,
+                                     sbj=f"Token for {token.user.email}")
                     return JsonResponse({'Status': True, 'Token': token.key})
 
             return JsonResponse({'Status': False, 'Errors': 'Не удалось авторизовать'})
@@ -1148,7 +1171,11 @@ class RegisterAccount(APIView):
                     user = user_serializer.save()
                     user.set_password(request.data['password'])
                     user.save()
-                    new_user_registered.send(sender=self.__class__, user_id=user.id)
+                    token, _ = ConfirmEmailToken.objects.get_or_create(user_id=user.id)
+                    send_email.delay(cnee=token.user.email,
+                                     sndr=settings.EMAIL_HOST_USER,
+                                     text=token.key,
+                                     sbj=f"Password Reset Token for {token.user.email}")
                     return JsonResponse({'Status': True})
                 else:
                     return JsonResponse({'Status': False, 'Errors': user_serializer.errors})
@@ -1163,7 +1190,6 @@ class ConfirmAccount(APIView):
     # Регистрация методом POST
     def post(self, request, *args, **kwargs):
         # проверяем обязательные аргументы
-        print(request.data)
         if {'email', 'token'}.issubset(request.data):
             token = ConfirmEmailToken.objects.filter(user__email=request.data['email'],
                                                      key=request.data['token']).first()
@@ -1171,6 +1197,10 @@ class ConfirmAccount(APIView):
                 token.user.is_active = True
                 token.user.save()
                 token.delete()
+                send_email.delay(cnee=token.user.email,
+                                 sndr=settings.EMAIL_HOST_USER,
+                                 text=f'email {request.data["email"]} confirmed',
+                                 sbj=f'email confirmed {request.data["email"]}')
                 return JsonResponse({'Status': True})
             else:
                 return JsonResponse({'Status': False, 'Errors': 'Неправильно указан токен или email'})
